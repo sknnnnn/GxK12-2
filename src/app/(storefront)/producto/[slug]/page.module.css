@@ -1,0 +1,56 @@
+.main {
+  padding: 2rem 1.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .main {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.image {
+  width: 100%;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.imagePlaceholder {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #eaeaea;
+  border-radius: 6px;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category {
+  font-size: 0.8rem;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.price {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.description {
+  color: #333;
+  line-height: 1.5;
+}

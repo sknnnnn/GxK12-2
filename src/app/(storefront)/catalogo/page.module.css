@@ -1,0 +1,38 @@
+.main {
+  padding: 2rem 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.categoryNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.categoryLink,
+.categoryActive {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  font-size: 0.875rem;
+}
+
+.categoryActive {
+  background: #171717;
+  color: #fff;
+  border-color: #171717;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.empty {
+  color: #666;
+  padding: 2rem 0;
+}
