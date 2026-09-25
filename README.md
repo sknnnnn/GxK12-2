@@ -4,6 +4,8 @@ E-commerce de indumentaria de GXK. Next.js (App Router) + TypeScript + Supabase.
 
 La documentación funcional y técnica (requerimientos, arquitectura funcional, arquitectura técnica) vive en el proyecto MACARIO, no en este repositorio.
 
+GXK tiene tres superficies (Storefront Web, Admin Web, y a futuro GXK Desktop) sobre un mismo backend y la misma lógica de negocio. Ver [`ARCHITECTURE.md`](./ARCHITECTURE.md) para cómo se organiza el código para sostener esto.
+
 ## Desarrollo
 
 ```bash
@@ -31,5 +33,6 @@ src/
 
 ## Estado
 
-Base técnica inicializada. Sin esquema de base de datos aplicado, sin integraciones reales
-(Mercado Pago, Andreani, Correo Argentino, email) todavía.
+Esquema de base de datos aplicado y validado en Supabase (`supabase/migrations/`). Sin integraciones reales
+(Mercado Pago, Andreani, Correo Argentino, email) todavía. `services/` sigue siendo stubs — ver `ARCHITECTURE.md`
+para la convención que su implementación debe seguir.
