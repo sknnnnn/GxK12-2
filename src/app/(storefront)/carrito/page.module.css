@@ -1,0 +1,142 @@
+.main {
+  padding: 2rem 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 2rem 0;
+  color: #666;
+}
+
+.lines {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 1rem;
+}
+
+.image {
+  width: 80px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #eaeaea;
+}
+
+.imagePlaceholder {
+  width: 80px;
+  height: 100px;
+  border-radius: 4px;
+  background: #eaeaea;
+}
+
+.lineInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lineName {
+  font-weight: 600;
+}
+
+.lineVariant {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.lineQuantity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.qtyButton {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #171717;
+  cursor: pointer;
+}
+
+.lineTotals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  text-align: right;
+}
+
+.lineSubtotal {
+  font-weight: 600;
+}
+
+.removeButton {
+  border: none;
+  background: none;
+  color: #a33;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-top: 1px solid #ddd;
+  font-size: 1.1rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.clearButton {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #171717;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkoutCta {
+  margin-left: auto;
+  padding: 0.65rem 1.5rem;
+  border-radius: 4px;
+  background: #171717;
+  color: #fff;
+  font-weight: 600;
+}

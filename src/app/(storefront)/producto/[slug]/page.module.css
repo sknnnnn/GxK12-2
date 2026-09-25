@@ -39,6 +39,12 @@
   gap: 0.5rem;
 }
 
+.infoHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .category {
   font-size: 0.8rem;
   color: #666;

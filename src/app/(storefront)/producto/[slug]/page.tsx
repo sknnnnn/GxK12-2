@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getProductBySlug } from "@/services/catalog";
-import { VariantSelector } from "@/components/storefront/VariantSelector";
+import { AddToCartButton } from "@/components/storefront/AddToCartButton";
+import { CartLink } from "@/components/storefront/CartLink";
 import { formatPrice } from "@/lib/format";
 import styles from "./page.module.css";
 
@@ -32,11 +33,14 @@ export default async function ProductoPage({ params }: PageProps<"/producto/[slu
       </div>
 
       <div className={styles.info}>
-        {product.category && <span className={styles.category}>{product.category.name}</span>}
+        <div className={styles.infoHeader}>
+          {product.category && <span className={styles.category}>{product.category.name}</span>}
+          <CartLink />
+        </div>
         <h1>{product.name}</h1>
         <p className={styles.price}>{formatPrice(product.price)}</p>
         {product.description && <p className={styles.description}>{product.description}</p>}
-        <VariantSelector variants={product.variants} />
+        <AddToCartButton product={product} />
       </div>
     </main>
   );

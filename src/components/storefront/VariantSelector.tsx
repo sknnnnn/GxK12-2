@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CatalogColor, CatalogSize, CatalogVariant } from "@/services/catalog";
 import styles from "./VariantSelector.module.css";
 
@@ -16,7 +16,15 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
  * disponibilidad de stock siempre se lee de CatalogVariant.inStock
  * (booleano ya resuelto server-side, nunca un número de stock).
  */
-export function VariantSelector({ variants }: { variants: CatalogVariant[] }) {
+type VariantSelectorProps = {
+  variants: CatalogVariant[];
+  // Notifica al padre la variante actualmente resuelta (o null si la
+  // selección todavía está incompleta/no coincide con ninguna real).
+  // Opcional: la vista de solo-lectura del producto no necesita pasarlo.
+  onSelectVariant?: (variant: CatalogVariant | null) => void;
+};
+
+export function VariantSelector({ variants, onSelectVariant }: VariantSelectorProps) {
   const sizes: CatalogSize[] = useMemo(
     () => dedupeById(variants.map((v) => v.size).filter((s): s is CatalogSize => s !== null)),
     [variants],
@@ -50,6 +58,10 @@ export function VariantSelector({ variants }: { variants: CatalogVariant[] }) {
       }) ?? null
     );
   }, [variants, hasSizes, hasColors, selectedSizeId, selectedColorId]);
+
+  useEffect(() => {
+    onSelectVariant?.(selectedVariant);
+  }, [selectedVariant, onSelectVariant]);
 
   let statusText: string;
   if (variants.length === 0) {
