@@ -26,11 +26,12 @@ import type { Tables } from "@/types/database";
 // reutilizada acá para getDashboardSummary/getStockAlerts).
 import { LOW_STOCK_THRESHOLD } from "./inventory";
 
-// Gestión de catálogo (productos/variantes/imágenes) y de inventario viven
-// en su propio archivo por tamaño -- siguen siendo el mismo módulo
+// Gestión de catálogo (productos/variantes/imágenes), inventario y pedidos
+// viven en su propio archivo por tamaño -- siguen siendo el mismo módulo
 // services/admin.
 export * from "./products";
 export * from "./inventory";
+export * from "./orders";
 
 // Pedidos considerados "venta" para el total de Ventas del dashboard:
 // pending_payment (todavía no pagó) y cancelled/refunded (no se concretó o

@@ -1,0 +1,76 @@
+.header {
+  margin-bottom: 1.25rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: flex-end;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.filterField input,
+.filterField select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.applyButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #333;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #333;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.orderNumber {
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid #555;
+  white-space: nowrap;
+}
+
+.emptyState {
+  color: #666;
+  padding: 1.5rem 0;
+}
+
+.muted {
+  color: #888;
+}
