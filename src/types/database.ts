@@ -702,6 +702,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_payment_result: {
+        Args: {
+          p_amount: number
+          p_currency: string
+          p_external_id: string
+          p_order_number: string
+          p_provider: string
+          p_raw_reference: Json
+          p_status: string
+        }
+        Returns: {
+          amount: number
+          created_at: string
+          currency: string
+          external_id: string | null
+          id: string
+          order_id: string
+          provider: string
+          raw_reference: Json | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       release_expired_stock_reservations: { Args: never; Returns: number }
     }
     Enums: {

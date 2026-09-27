@@ -51,10 +51,13 @@ export async function submitCheckoutAction(input: unknown): Promise<CheckoutResu
     return { ok: false, issues: [{ type: "malformed_request" }] };
   }
 
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+
   const supabase = createSupabaseAdminClient();
   return submitCheckout(supabase, {
     items,
     customer: customer as CheckoutCustomerInput,
     shipping: shipping as CheckoutShippingInput,
+    siteUrl,
   });
 }

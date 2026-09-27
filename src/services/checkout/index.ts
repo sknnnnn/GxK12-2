@@ -16,6 +16,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import { revalidateCartItems, type CartItemInput, type CartValidationIssue, type ValidatedCartLine } from "@/services/cart";
+import { createOrderPayment } from "@/services/payments";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 // Sin cuenta obligatoria (guest checkout): solo lo mínimo para poder
@@ -38,6 +39,8 @@ export type CheckoutInput = {
   items: CartItemInput[];
   customer: CheckoutCustomerInput;
   shipping: CheckoutShippingInput;
+  /** NEXT_PUBLIC_SITE_URL sin barra final -- para armar las URLs de Mercado Pago. */
+  siteUrl: string;
 };
 
 export type CheckoutFieldName = keyof CheckoutCustomerInput | keyof CheckoutShippingInput;
@@ -55,12 +58,33 @@ export type CheckoutIssue =
   // el Server Action es un POST alcanzable directamente, no solo desde la UI.
   | { type: "malformed_request" };
 
+// Estado del intento de iniciar el pago -- distinto de CheckoutResult.ok:
+// el pedido y la reserva de stock ya existen en ambos casos (ver
+// submitCheckout), esto solo indica si se pudo generar el link de Mercado
+// Pago para pagarlo ahora mismo.
+export type CheckoutPaymentStatus =
+  | { status: "redirect"; initPoint: string }
+  // "not_configured": MERCADO_PAGO_ACCESS_TOKEN vacío en .env.local -- ver
+  // services/payments. Esperado hasta que el dueño de GXK cargue sus
+  // credenciales; el storefront debe mostrarlo como "pago pendiente de
+  // habilitar", nunca como un error del pedido.
+  | { status: "unavailable"; reason: "not_configured" | "provider_error" };
+
 export type CheckoutOrderSummary = {
   orderNumber: string;
   subtotal: number;
   shippingCost: number;
   total: number;
   lines: ValidatedCartLine[];
+  /**
+   * Token en claro de consulta pública del pedido (nunca el hash) -- se usa
+   * para armar el link de retorno desde Mercado Pago y la propia pantalla
+   * de estado (ver services/orders.getOrderByLookupToken). No se persiste
+   * en ningún lado más que en el propio link: solo lo tiene quien acaba de
+   * pagar.
+   */
+  lookupToken: string;
+  payment: CheckoutPaymentStatus;
 };
 
 export type CheckoutResult = { ok: true; order: CheckoutOrderSummary } | { ok: false; issues: CheckoutIssue[] };
@@ -163,6 +187,28 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
     return { ok: false, issues: [mapRpcError(error)] };
   }
 
+  // El pedido y la reserva de stock ya se crearon (arriba) -- un problema
+  // acá (credenciales de Mercado Pago sin configurar, o un error de su API)
+  // no debe deshacer eso ni reportarse como si el pedido hubiera fallado:
+  // se refleja únicamente en `payment`, ver CheckoutPaymentStatus.
+  const paymentResult = await createOrderPayment({
+    orderNumber: data.order_number,
+    items: validation.lines.map((line) => ({
+      title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+    })),
+    siteUrl: input.siteUrl,
+    lookupToken,
+  });
+
+  if (!paymentResult.ok && paymentResult.reason === "provider_error") {
+    // No se propaga el mensaje crudo de la API al cliente (services/payments
+    // ya lo deja server-side): esto es solo para poder diagnosticarlo desde
+    // los logs del servidor sin exponer detalles internos al comprador.
+    console.error(`[checkout] Mercado Pago createPreference falló para ${data.order_number}:`, paymentResult.message);
+  }
+
   return {
     ok: true,
     order: {
@@ -171,6 +217,10 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
       shippingCost: data.shipping_cost,
       total: data.total,
       lines: validation.lines,
+      lookupToken,
+      payment: paymentResult.ok
+        ? { status: "redirect", initPoint: paymentResult.initPoint }
+        : { status: "unavailable", reason: paymentResult.reason },
     },
   };
 }

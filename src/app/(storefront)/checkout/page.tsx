@@ -74,6 +74,7 @@ export default function CheckoutPage() {
   const [form, setForm] = useState<BuyerForm>(EMPTY_FORM);
   const [issues, setIssues] = useState<CheckoutIssue[]>([]);
   const [order, setOrder] = useState<CheckoutOrderSummary | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const labelByVariant = new Map(
@@ -111,8 +112,18 @@ export default function CheckoutPage() {
         });
 
         if (result.ok) {
-          setOrder(result.order);
           clear();
+          if (result.order.payment.status === "redirect") {
+            // El pedido y la reserva de stock ya existen server-side -- lo
+            // único que falta es que el comprador complete el pago en
+            // Mercado Pago. El estado real después de esto lo escribe el
+            // webhook (nunca este redirect ni la vuelta del navegador), ver
+            // src/app/api/mercado-pago/webhook y /checkout/retorno.
+            setIsRedirecting(true);
+            window.location.href = result.order.payment.initPoint;
+            return;
+          }
+          setOrder(result.order);
         } else {
           setIssues(result.issues);
         }
@@ -120,6 +131,14 @@ export default function CheckoutPage() {
         setIssues([{ type: "order_creation_failed", message: "unexpected_error" }]);
       }
     });
+  }
+
+  if (isRedirecting) {
+    return (
+      <main className={styles.main}>
+        <p>Redirigiendo a Mercado Pago...</p>
+      </main>
+    );
   }
 
   if (order) {
@@ -158,8 +177,10 @@ export default function CheckoutPage() {
           </div>
 
           <p className={styles.confirmationNote}>
-            Tu pedido quedó registrado y el stock reservado por 20 minutos. El paso de pago (Mercado Pago) todavía no
-            está disponible en esta etapa -- se incorporará más adelante.
+            Tu pedido quedó registrado y el stock reservado por 20 minutos.{" "}
+            {order.payment.status === "unavailable" && order.payment.reason === "not_configured"
+              ? "El pago con Mercado Pago todavía no está configurado (faltan las credenciales) -- te contactaremos para completar el pago."
+              : "Hubo un problema al iniciar el pago con Mercado Pago -- te contactaremos para completar el pago."}
           </p>
 
           <Link href="/catalogo">Seguir comprando</Link>
