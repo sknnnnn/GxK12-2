@@ -23,6 +23,10 @@
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import type { Tables } from "@/types/database";
 
+// Gestión de catálogo (productos/variantes/imágenes) vive en su propio
+// archivo por tamaño -- sigue siendo el mismo módulo services/admin.
+export * from "./products";
+
 // Umbral de stock bajo confirmado para GXK -- no inventar otro valor ni
 // hacerlo configurable todavía.
 const LOW_STOCK_THRESHOLD = 3;

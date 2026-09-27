@@ -21,7 +21,7 @@ import type { Tables } from "@/types/database";
 // no está documentado en la Arquitectura técnica — solo dice que las
 // imágenes "se almacenan en Supabase Storage". Se deja esta constante como
 // placeholder explícito; ajustar cuando se cree/confirme el bucket real.
-const PRODUCT_IMAGES_BUCKET = "product-images";
+export const PRODUCT_IMAGES_BUCKET = "product-images";
 
 export type CatalogCategory = {
   id: string;
@@ -116,7 +116,7 @@ type VariantRow = Pick<
   "id" | "product_id" | "size_id" | "color_id" | "sku" | "price_override" | "in_stock"
 >;
 
-function buildImageUrl(supabase: GxkSupabaseClient, storagePath: string): string {
+export function buildImageUrl(supabase: GxkSupabaseClient, storagePath: string): string {
   return supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(storagePath).data.publicUrl;
 }
 

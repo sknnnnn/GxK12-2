@@ -1,0 +1,67 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.row > .field {
+  flex: 1;
+  min-width: 160px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.error {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e0a3a3;
+  background: #fdf1f1;
+  border-radius: 6px;
+  color: #a33;
+  font-size: 0.85rem;
+}
+
+.submitButton {
+  align-self: flex-start;
+  padding: 0.65rem 1.5rem;
+  border-radius: 4px;
+  border: none;
+  background: #171717;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

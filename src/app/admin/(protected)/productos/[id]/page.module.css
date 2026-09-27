@@ -1,0 +1,21 @@
+.error {
+  margin: 1rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e0a3a3;
+  background: #fdf1f1;
+  border-radius: 6px;
+  color: #a33;
+  font-size: 0.85rem;
+  max-width: 640px;
+}
+
+.success {
+  margin: 1rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #9dd6ab;
+  background: #f0fbf2;
+  border-radius: 6px;
+  color: #2a7;
+  font-size: 0.85rem;
+  max-width: 640px;
+}
