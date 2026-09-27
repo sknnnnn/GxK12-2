@@ -22,14 +22,15 @@
 
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import type { Tables } from "@/types/database";
+// LOW_STOCK_THRESHOLD vive en inventory.ts (una sola fuente de verdad,
+// reutilizada acá para getDashboardSummary/getStockAlerts).
+import { LOW_STOCK_THRESHOLD } from "./inventory";
 
-// Gestión de catálogo (productos/variantes/imágenes) vive en su propio
-// archivo por tamaño -- sigue siendo el mismo módulo services/admin.
+// Gestión de catálogo (productos/variantes/imágenes) y de inventario viven
+// en su propio archivo por tamaño -- siguen siendo el mismo módulo
+// services/admin.
 export * from "./products";
-
-// Umbral de stock bajo confirmado para GXK -- no inventar otro valor ni
-// hacerlo configurable todavía.
-const LOW_STOCK_THRESHOLD = 3;
+export * from "./inventory";
 
 // Pedidos considerados "venta" para el total de Ventas del dashboard:
 // pending_payment (todavía no pagó) y cancelled/refunded (no se concretó o

@@ -1,0 +1,151 @@
+.header {
+  margin-bottom: 1.25rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: flex-end;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.filterField input,
+.filterField select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.applyButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #333;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.error {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e0a3a3;
+  background: #fdf1f1;
+  border-radius: 6px;
+  color: #a33;
+  font-size: 0.85rem;
+  max-width: 640px;
+}
+
+.success {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #9dd6ab;
+  background: #f0fbf2;
+  border-radius: 6px;
+  color: #2a7;
+  font-size: 0.85rem;
+  max-width: 640px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #333;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.thumb {
+  width: 40px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #eaeaea;
+}
+
+.thumbPlaceholder {
+  width: 40px;
+  height: 50px;
+  border-radius: 4px;
+  background: #333;
+}
+
+.productName {
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid #555;
+  white-space: nowrap;
+}
+
+.badgeOutOfStock {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+.badgeLowStock {
+  color: #b8860b;
+  border-color: #b8860b;
+}
+
+.badgeInStock {
+  color: #2a7;
+  border-color: #2a7;
+}
+
+.badgeInactive {
+  color: #888;
+}
+
+.emptyState {
+  color: #666;
+  padding: 1.5rem 0;
+}
+
+.stockForm {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stockForm input {
+  width: 70px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.saveButton {
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid #333;
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
