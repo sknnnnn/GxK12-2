@@ -12,7 +12,20 @@ const STATUS_LABELS: Record<string, string> = {
   discontinued: "Descontinuado",
 };
 
-type InitialProduct = Pick<AdminProductDetail, "name" | "slug" | "description" | "price" | "categoryId" | "status" | "isFeatured">;
+type InitialProduct = Pick<
+  AdminProductDetail,
+  | "name"
+  | "slug"
+  | "description"
+  | "price"
+  | "categoryId"
+  | "status"
+  | "isFeatured"
+  | "weightGrams"
+  | "lengthCm"
+  | "widthCm"
+  | "heightCm"
+>;
 
 /**
  * Form de campos "core" del producto -- reutilizado por crear y editar
@@ -87,6 +100,59 @@ export function ProductForm({
         <input type="checkbox" name="isFeatured" defaultChecked={initialProduct?.isFeatured ?? false} />
         Destacado
       </label>
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Datos para envío</legend>
+        <div className={styles.row}>
+          <label className={styles.field}>
+            Peso (g)
+            <input
+              type="number"
+              name="weightGrams"
+              min="0"
+              step="1"
+              defaultValue={initialProduct?.weightGrams ?? ""}
+              placeholder="Sin cargar"
+            />
+          </label>
+
+          <label className={styles.field}>
+            Largo (cm)
+            <input
+              type="number"
+              name="lengthCm"
+              min="0"
+              step="0.1"
+              defaultValue={initialProduct?.lengthCm ?? ""}
+              placeholder="Sin cargar"
+            />
+          </label>
+
+          <label className={styles.field}>
+            Ancho (cm)
+            <input
+              type="number"
+              name="widthCm"
+              min="0"
+              step="0.1"
+              defaultValue={initialProduct?.widthCm ?? ""}
+              placeholder="Sin cargar"
+            />
+          </label>
+
+          <label className={styles.field}>
+            Alto (cm)
+            <input
+              type="number"
+              name="heightCm"
+              min="0"
+              step="0.1"
+              defaultValue={initialProduct?.heightCm ?? ""}
+              placeholder="Sin cargar"
+            />
+          </label>
+        </div>
+      </fieldset>
 
       <button type="submit" className={styles.submitButton} disabled={isPending}>
         {isPending ? "Guardando..." : "Guardar"}

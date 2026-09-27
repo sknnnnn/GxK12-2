@@ -185,13 +185,30 @@ export type AdminProductDetail = {
   isFeatured: boolean;
   categoryId: string;
   updatedAt: string;
+  /** Datos físicos para Shipping (PRO-127) -- ver migración add_product_shipping_dimensions. NULL = sin cargar todavía. */
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
   images: AdminProductImage[];
   variants: AdminProductVariant[];
 };
 
 type AdminProductDetailQueryRow = Pick<
   Tables<"products">,
-  "id" | "slug" | "name" | "description" | "price" | "status" | "is_featured" | "category_id" | "updated_at"
+  | "id"
+  | "slug"
+  | "name"
+  | "description"
+  | "price"
+  | "status"
+  | "is_featured"
+  | "category_id"
+  | "updated_at"
+  | "weight_grams"
+  | "length_cm"
+  | "width_cm"
+  | "height_cm"
 > & {
   product_images: Pick<Tables<"product_images">, "id" | "storage_path" | "alt_text" | "is_primary" | "sort_order">[];
   product_variants: Pick<
@@ -209,7 +226,7 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, slug, name, description, price, status, is_featured, category_id, updated_at, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
+      "id, slug, name, description, price, status, is_featured, category_id, updated_at, weight_grams, length_cm, width_cm, height_cm, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
     )
     .eq("id", id)
     .maybeSingle()
@@ -249,6 +266,10 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
     isFeatured: product.is_featured,
     categoryId: product.category_id,
     updatedAt: product.updated_at,
+    weightGrams: product.weight_grams,
+    lengthCm: product.length_cm,
+    widthCm: product.width_cm,
+    heightCm: product.height_cm,
     images: [...product.product_images]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((img) => ({
@@ -289,6 +310,11 @@ export type ProductInput = {
   categoryId: string;
   status: ProductStatus;
   isFeatured: boolean;
+  /** Datos físicos para Shipping (PRO-127) -- gramos/centímetros, NULL = sin cargar todavía. */
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
 };
 
 export async function createProduct(supabase: GxkSupabaseClient, input: ProductInput): Promise<{ id: string }> {
@@ -302,6 +328,10 @@ export async function createProduct(supabase: GxkSupabaseClient, input: ProductI
       category_id: input.categoryId,
       status: input.status,
       is_featured: input.isFeatured,
+      weight_grams: input.weightGrams,
+      length_cm: input.lengthCm,
+      width_cm: input.widthCm,
+      height_cm: input.heightCm,
     })
     .select("id")
     .single();
@@ -328,6 +358,10 @@ export async function updateProduct(supabase: GxkSupabaseClient, id: string, inp
       category_id: input.categoryId,
       status: input.status,
       is_featured: input.isFeatured,
+      weight_grams: input.weightGrams,
+      length_cm: input.lengthCm,
+      width_cm: input.widthCm,
+      height_cm: input.heightCm,
     })
     .eq("id", id);
 

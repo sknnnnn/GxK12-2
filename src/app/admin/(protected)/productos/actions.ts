@@ -35,6 +35,30 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Parsea un campo opcional de datos físicos (peso/dimensiones): vacío -> null
+ * (sin dato, no 0 -- ver migración add_product_shipping_dimensions), y valida
+ * el mismo rango que el CHECK de la base (peso no negativo, dimensiones > 0),
+ * para dar el mensaje de error acá en vez de dejar que lo rechace el CHECK.
+ */
+function parsePhysicalField(
+  raw: string,
+  label: string,
+  options: { integer: boolean; allowZero: boolean },
+): { value: number | null } | { error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: null };
+
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return { error: `${label} debe ser un número.` };
+  if (options.integer && !Number.isInteger(value)) return { error: `${label} debe ser un número entero.` };
+  if (options.allowZero ? value < 0 : value <= 0) {
+    return { error: options.allowZero ? `${label} no puede ser negativo.` : `${label} debe ser mayor a 0.` };
+  }
+
+  return { value };
+}
+
 function parseProductInput(formData: FormData): { input: ProductInput } | { error: string } {
   const name = String(formData.get("name") ?? "").trim();
   const slugRaw = String(formData.get("slug") ?? "").trim();
@@ -54,6 +78,20 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
   const slug = slugify(slugRaw || name);
   if (!slug) return { error: "No se pudo generar un slug válido a partir del nombre." };
 
+  const weightGramsRaw = String(formData.get("weightGrams") ?? "");
+  const lengthCmRaw = String(formData.get("lengthCm") ?? "");
+  const widthCmRaw = String(formData.get("widthCm") ?? "");
+  const heightCmRaw = String(formData.get("heightCm") ?? "");
+
+  const weightGrams = parsePhysicalField(weightGramsRaw, "El peso", { integer: true, allowZero: true });
+  if ("error" in weightGrams) return weightGrams;
+  const lengthCm = parsePhysicalField(lengthCmRaw, "El largo", { integer: false, allowZero: false });
+  if ("error" in lengthCm) return lengthCm;
+  const widthCm = parsePhysicalField(widthCmRaw, "El ancho", { integer: false, allowZero: false });
+  if ("error" in widthCm) return widthCm;
+  const heightCm = parsePhysicalField(heightCmRaw, "El alto", { integer: false, allowZero: false });
+  if ("error" in heightCm) return heightCm;
+
   return {
     input: {
       name,
@@ -63,6 +101,10 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
       categoryId,
       status: status as ProductStatus,
       isFeatured,
+      weightGrams: weightGrams.value,
+      lengthCm: lengthCm.value,
+      widthCm: widthCm.value,
+      heightCm: heightCm.value,
     },
   };
 }
