@@ -1,11 +1,12 @@
 // Abstracción de proveedor logístico. Cada proveedor real (Andreani, Correo
 // Argentino) implementa esta interfaz en src/services/shipping/providers/.
 //
-// Estado de esta etapa: SOLO arquitectura -- tipos e interfaz, sin ninguna
-// llamada real a ninguna API todavía. Ningún adapter tiene credenciales;
-// ver el archivo de cada proveedor (src/services/shipping/providers/*.ts)
-// para el detalle exacto de qué falta confirmar/obtener antes de poder
-// implementarlo de verdad.
+// Estado (PRO-126): Correo Argentino (providers/correoArgentino.ts) ya hace
+// llamadas HTTP reales contra su API oficial (PAQ.AR API 2.0) para
+// listPickupPoints/getLabel/getTracking/cancelShipment -- createShipment
+// queda con un límite puntual documentado en ese archivo. Andreani
+// (providers/andreani.ts) sigue siendo solo arquitectura: ningún endpoint
+// suyo está confirmado todavía, ver el detalle en ese archivo.
 //
 // Fuentes usadas para diseñar esto:
 // - Correo Argentino (PAQ.AR API 2.0): manual oficial de usuario (Abril
@@ -42,10 +43,16 @@ export type ShippingPostalAddress = {
  * Destino de un envío: domicilio del comprador O sucursal/punto de retiro
  * (`branchId` referencia un id devuelto por `ShippingProvider.listPickupPoints`).
  * Ambos proveedores soportan las dos modalidades -- ver `ShippingCapabilities.branchPickup`.
+ *
+ * `kind` ("agency" | "locker") existe porque Correo Argentino distingue
+ * ambas modalidades como valores de `deliveryType` distintos en POST
+ * /v1/orders (ver providers/correoArgentino.ts) y GET /v1/agencies no
+ * devuelve ningún campo que permita inferir esto a partir de `branchId` --
+ * es una decisión de negocio de quien arma el envío, no algo derivable.
  */
 export type ShippingDestination =
   | { type: "address"; address: ShippingPostalAddress }
-  | { type: "branch"; branchId: string };
+  | { type: "branch"; branchId: string; kind: "agency" | "locker" };
 
 /**
  * Datos del paquete. Ninguno de los dos proveedores cotiza ni da de alta
@@ -145,6 +152,13 @@ export type CreateShipmentInput = {
   /** Referencia externa (orders.order_number) -- mismo rol que external_reference en services/payments. */
   orderNumber: string;
   origin: ShippingPostalAddress;
+  /**
+   * Datos de contacto del remitente (el comercio, GXK) -- Correo Argentino
+   * (senderData.businessName, ver providers/correoArgentino.ts) lo pide
+   * como dato obligatorio separado de la dirección. No estaba modelado
+   * porque hasta PRO-126 ningún adapter llegaba a necesitarlo de verdad.
+   */
+  originContact: ShippingRecipient;
   destination: ShippingDestination;
   recipient: ShippingRecipient;
   parcel: ShippingParcel;
@@ -191,6 +205,10 @@ export type ShippingPickupPoint = {
   acceptsDropoff: boolean;
   /** Acepta que el comprador retire ahí su pedido ("entrega"/retiro). */
   acceptsPickup: boolean;
+  /** Dato real devuelto por GET /v1/agencies (Correo Argentino) cuando está disponible -- útil para elegir sucursal. */
+  phone?: string;
+  /** Idem, texto libre tal como lo devuelve la API (ej. "LUN A VIE 08.00 A 14.30") -- no se parsea a una estructura propia. */
+  schedule?: string;
 };
 
 /**
