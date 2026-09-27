@@ -1,0 +1,61 @@
+.main {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.field input {
+  padding: 0.6rem 0.65rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.error {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e0a3a3;
+  background: #fdf1f1;
+  border-radius: 6px;
+  color: #a33;
+  font-size: 0.85rem;
+}
+
+.submitButton {
+  padding: 0.7rem 1rem;
+  border-radius: 4px;
+  border: none;
+  background: #171717;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
