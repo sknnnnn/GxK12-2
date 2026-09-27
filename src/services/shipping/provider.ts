@@ -66,6 +66,66 @@ export type ShippingRecipient = {
   phone?: string;
 };
 
+/**
+ * Línea de pedido con los datos físicos del producto (PRO-127: products.weight_grams/
+ * length_cm/width_cm/height_cm), tal como los necesita `resolveShippingParcel`
+ * (src/services/shipping/index.ts) para construir un `ShippingParcel` antes de
+ * llamar a un `ShippingProvider`. Nunca viene del navegador -- lo arma quien
+ * resuelva el pedido contra el catálogo (fuera de alcance de PRO-125: la
+ * orquestación real pedido -> parcel es de una etapa futura, ver PRO-126/128).
+ */
+export type ShippableOrderItem = {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+};
+
+/**
+ * Un producto de `ShippableOrderItem` todavía no tiene cargado alguno de sus
+ * datos físicos (PRO-127 los deja NULL a propósito hasta que se cargan desde
+ * Admin Productos -- nunca hay que inventarlos). Lista TODOS los productos
+ * con datos faltantes de una sola vez (no solo el primero) para que se
+ * puedan corregir en un solo paso antes de reintentar.
+ */
+export class ShippingMissingPhysicalDataError extends Error {
+  constructor(
+    public readonly items: Array<{
+      productId: string;
+      productName: string;
+      sku: string | null;
+      missingFields: Array<"weightGrams" | "lengthCm" | "widthCm" | "heightCm">;
+    }>,
+  ) {
+    const detail = items
+      .map((item) => `${item.productName}${item.sku ? ` (${item.sku})` : ""}: falta ${item.missingFields.join(", ")}`)
+      .join("; ");
+    super(`Faltan datos físicos de envío para poder armar el paquete -- ${detail}`);
+    this.name = "ShippingMissingPhysicalDataError";
+  }
+}
+
+/**
+ * `resolveShippingParcel` solo arma un `ShippingParcel` para el caso simple
+ * (un único producto, cantidad 1): cómo consolidar varios productos/unidades
+ * en uno o más bultos depende de reglas de empaquetado propias de cada
+ * transportista que todavía no confirmamos para Andreani (ver
+ * providers/andreani.ts) -- inventar una (sumar pesos, tomar el máximo de
+ * cada dimensión, etc.) sería una regla comercial no confirmada, no un
+ * cálculo neutral. Se lanza este error en vez de adivinar.
+ */
+export class ShippingPackagingNotSupportedError extends Error {
+  constructor(reason: string) {
+    super(`No se puede armar un único paquete para este pedido todavía: ${reason}`);
+    this.name = "ShippingPackagingNotSupportedError";
+  }
+}
+
 export type ShippingQuoteInput = {
   /** Domicilio de despacho del comercio (depósito de GXK) -- todavía no definido, ver services/shipping/index.ts. */
   origin: ShippingPostalAddress;
