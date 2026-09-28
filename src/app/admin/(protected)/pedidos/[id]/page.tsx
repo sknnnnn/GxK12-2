@@ -6,6 +6,7 @@ import { formatPrice } from "@/lib/format";
 import { updateOrderStatusAction } from "../actions";
 import { retryShipmentAction } from "../../envios/actions";
 import { SHIPMENT_STATUS_LABELS } from "@/services/shipping/shipments";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import styles from "./page.module.css";
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -104,9 +105,13 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
         <div className={styles.transitions}>
           {allowedNext.map((nextStatus) => (
             <form key={nextStatus} action={updateOrderStatusAction.bind(null, order.id, nextStatus)}>
-              <button type="submit" className={styles.transitionButton}>
+              <SubmitButton
+                className={styles.transitionButton}
+                pendingText="Actualizando…"
+                confirmText={`¿Marcar el pedido ${order.orderNumber} como "${ORDER_STATUS_LABELS[nextStatus] ?? nextStatus}"? Este cambio no se puede deshacer desde el panel.`}
+              >
                 Marcar como {ORDER_STATUS_LABELS[nextStatus] ?? nextStatus}
-              </button>
+              </SubmitButton>
             </form>
           ))}
         </div>
@@ -152,7 +157,9 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
                       <div className={styles.thumbPlaceholder} aria-hidden="true" />
                     )}
                   </td>
-                  <td>{item.productName}</td>
+                  <td>
+                    {item.productId ? <Link href={`/admin/productos/${item.productId}`}>{item.productName}</Link> : item.productName}
+                  </td>
                   <td>{item.variantLabel ?? "—"}</td>
                   <td>{item.sku ?? "—"}</td>
                   <td>{item.quantity}</td>
@@ -234,6 +241,9 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
         {order.shipment ? (
           <>
             <h3 className={styles.sectionTitle}>Envío</h3>
+            <p>
+              <Link href="/admin/envios">Ver todos los envíos</Link>
+            </p>
             <dl className={styles.definitionList}>
               <dt>Proveedor</dt>
               <dd>{order.shipment.provider}</dd>
@@ -264,9 +274,9 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
             </dl>
             {order.shipment.status === "failed" && (
               <form action={retryShipmentAction.bind(null, order.id, `/admin/pedidos/${order.id}`)}>
-                <button type="submit" className={styles.transitionButton}>
+                <SubmitButton className={styles.transitionButton} pendingText="Reintentando…">
                   Reintentar alta del envío
-                </button>
+                </SubmitButton>
               </form>
             )}
           </>
@@ -275,9 +285,9 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
             <p className={styles.emptyState}>Todavía no hay ningún envío registrado para este pedido.</p>
             {(order.status === "payment_confirmed" || order.status === "preparing") && (
               <form action={retryShipmentAction.bind(null, order.id, `/admin/pedidos/${order.id}`)}>
-                <button type="submit" className={styles.transitionButton}>
+                <SubmitButton className={styles.transitionButton} pendingText="Creando envío…">
                   Crear envío
-                </button>
+                </SubmitButton>
               </form>
             )}
           </>

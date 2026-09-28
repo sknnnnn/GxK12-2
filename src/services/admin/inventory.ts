@@ -52,6 +52,8 @@ export type InventoryFilters = {
   stockStatus?: StockStatus | "all";
   categoryId?: string;
   productStatus?: ProductStatus;
+  /** product_variants.is_active. "active" es el mismo universo que cuentan las alertas de stock del Dashboard (getStockAlerts). */
+  variantActivity?: "all" | "active" | "inactive";
   sort?: "product_asc" | "stock_asc" | "stock_desc";
 };
 
@@ -165,6 +167,11 @@ export async function getInventoryItems(
 
   if (filters.stockStatus && filters.stockStatus !== "all") {
     items = items.filter((item) => item.stockStatus === filters.stockStatus);
+  }
+
+  if (filters.variantActivity === "active" || filters.variantActivity === "inactive") {
+    const wantActive = filters.variantActivity === "active";
+    items = items.filter((item) => item.isActive === wantActive);
   }
 
   if (filters.sort !== "stock_asc" && filters.sort !== "stock_desc") {

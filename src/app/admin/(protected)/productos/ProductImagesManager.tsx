@@ -1,4 +1,5 @@
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import type { AdminProductImage } from "@/services/admin";
 import { deleteImageAction, setPrimaryImageAction, uploadImageAction } from "./actions";
 import styles from "./ProductImagesManager.module.css";
@@ -26,9 +27,9 @@ export function ProductImagesManager({ productId, images }: { productId: string;
                 <span className={styles.primaryBadge}>Principal</span>
               ) : (
                 <form action={setPrimaryImageAction.bind(null, productId, image.id)}>
-                  <button type="submit" className={styles.smallButton}>
+                  <SubmitButton className={styles.smallButton} pendingText="Guardando…">
                     Marcar principal
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
               <form action={deleteImageAction.bind(null, productId, image.id)}>
@@ -47,9 +48,9 @@ export function ProductImagesManager({ productId, images }: { productId: string;
       <form action={uploadImageAction.bind(null, productId)} encType="multipart/form-data" className={styles.uploadForm}>
         <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required />
         <input type="text" name="altText" placeholder="Texto alternativo (opcional)" />
-        <button type="submit" className={styles.uploadButton}>
+        <SubmitButton className={styles.uploadButton} pendingText="Subiendo…">
           Subir imagen
-        </button>
+        </SubmitButton>
       </form>
     </section>
   );

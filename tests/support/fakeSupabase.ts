@@ -75,6 +75,10 @@ export function createFakeSupabase(tables: Record<string, Row[]>, options: FakeS
       if (!column.includes(".")) this.filters.push((row) => values.includes(row[column]));
       return this;
     }
+    lte(column: string, value: number) {
+      if (!column.includes(".")) this.filters.push((row) => (row[column] as number) <= value);
+      return this;
+    }
     order() {
       return this;
     }

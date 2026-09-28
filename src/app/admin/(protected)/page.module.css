@@ -68,3 +68,27 @@
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
 }
+
+/* Tarjetas accionables (Link): mismo aspecto que una tarjeta estática. */
+a.summaryCard {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.summaryCard:hover,
+a.summaryCard:focus-visible {
+  border-color: currentColor;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.errorState {
+  color: #c0392b;
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SHIPMENT_STATUS_LABELS } from "@/services/shipping/shipments";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminOrders, ORDER_STATUSES, PAYMENT_STATUSES, type OrderStatus } from "@/services/admin";
 import { formatPrice } from "@/lib/format";
@@ -112,7 +113,9 @@ export default async function AdminPedidosPage(props: PageProps<"/admin/pedidos"
       </form>
 
       {orders.length === 0 ? (
-        <p className={styles.emptyState}>No hay pedidos que coincidan con estos filtros.</p>
+        <p className={styles.emptyState}>
+          No hay pedidos que coincidan con estos filtros. <Link href="/admin/pedidos">Quitar filtros</Link>
+        </p>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -132,7 +135,9 @@ export default async function AdminPedidosPage(props: PageProps<"/admin/pedidos"
             <tbody>
               {orders.map((order) => (
                 <tr key={order.id}>
-                  <td className={styles.orderNumber}>{order.orderNumber}</td>
+                  <td className={styles.orderNumber}>
+                    <Link href={`/admin/pedidos/${order.id}`}>{order.orderNumber}</Link>
+                  </td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td>{order.customerName}</td>
                   <td>{order.customerEmail}</td>
@@ -151,7 +156,9 @@ export default async function AdminPedidosPage(props: PageProps<"/admin/pedidos"
                   </td>
                   <td>
                     {order.hasShipment ? (
-                      <span className={styles.badge}>{order.shipmentStatus ?? "Sin estado"}</span>
+                      <span className={styles.badge}>
+                        {order.shipmentStatus ? (SHIPMENT_STATUS_LABELS[order.shipmentStatus] ?? order.shipmentStatus) : "Sin estado"}
+                      </span>
                     ) : (
                       <span className={styles.muted}>Sin envío</span>
                     )}

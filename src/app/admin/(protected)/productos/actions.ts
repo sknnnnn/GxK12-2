@@ -198,7 +198,7 @@ export async function createVariantAction(productId: string, formData: FormData)
     redirect(`/admin/productos/${productId}?error=${encodeURIComponent(friendlyVariantError(error))}`);
   }
 
-  redirect(`/admin/productos/${productId}`);
+  redirect(`/admin/productos/${productId}?success=1`);
 }
 
 export async function updateVariantAction(productId: string, variantId: string, formData: FormData): Promise<void> {
@@ -216,7 +216,7 @@ export async function updateVariantAction(productId: string, variantId: string, 
     redirect(`/admin/productos/${productId}?error=${encodeURIComponent(friendlyVariantError(error))}`);
   }
 
-  redirect(`/admin/productos/${productId}`);
+  redirect(`/admin/productos/${productId}?success=1`);
 }
 
 // ----------------------------------------------------------------------------
@@ -248,19 +248,27 @@ export async function uploadImageAction(productId: string, formData: FormData): 
     redirect(`/admin/productos/${productId}?error=${encodeURIComponent("No se pudo subir la imagen.")}`);
   }
 
-  redirect(`/admin/productos/${productId}`);
+  redirect(`/admin/productos/${productId}?success=1`);
 }
 
 export async function setPrimaryImageAction(productId: string, imageId: string, formData: FormData): Promise<void> {
   void formData;
   const supabase = await createSupabaseServerClient();
-  await setPrimaryProductImage(supabase, productId, imageId);
-  redirect(`/admin/productos/${productId}`);
+  try {
+    await setPrimaryProductImage(supabase, productId, imageId);
+  } catch {
+    redirect(`/admin/productos/${productId}?error=${encodeURIComponent("No se pudo marcar la imagen como principal.")}`);
+  }
+  redirect(`/admin/productos/${productId}?success=1`);
 }
 
 export async function deleteImageAction(productId: string, imageId: string, formData: FormData): Promise<void> {
   void formData;
   const supabase = await createSupabaseServerClient();
-  await deleteProductImage(supabase, imageId);
-  redirect(`/admin/productos/${productId}`);
+  try {
+    await deleteProductImage(supabase, imageId);
+  } catch {
+    redirect(`/admin/productos/${productId}?error=${encodeURIComponent("No se pudo eliminar la imagen.")}`);
+  }
+  redirect(`/admin/productos/${productId}?success=1`);
 }

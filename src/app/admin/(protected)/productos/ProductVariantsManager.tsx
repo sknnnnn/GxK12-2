@@ -1,6 +1,7 @@
 import type { AdminColorOption, AdminProductVariant, AdminSizeOption } from "@/services/admin";
 import { createVariantAction, updateVariantAction } from "./actions";
 import styles from "./ProductVariantsManager.module.css";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 
 // Server Component: cada variante existente es su propia <form> (guarda
 // talle/color/sku/precio/stock/activa juntos, un solo botón "Guardar" por
@@ -66,9 +67,7 @@ export function ProductVariantsManager({
                 <input type="checkbox" name="isActive" defaultChecked={variant.isActive} />
               </span>
 
-              <button type="submit" className={styles.saveButton}>
-                Guardar
-              </button>
+              <SubmitButton className={styles.saveButton}>Guardar</SubmitButton>
             </form>
           ))}
         </div>
@@ -114,9 +113,9 @@ export function ProductVariantsManager({
           <input type="number" name="stock" min="0" step="1" required defaultValue={0} />
         </label>
 
-        <button type="submit" className={styles.addButton}>
+        <SubmitButton className={styles.addButton} pendingText="Agregando…">
           Agregar variante
-        </button>
+        </SubmitButton>
       </form>
     </section>
   );

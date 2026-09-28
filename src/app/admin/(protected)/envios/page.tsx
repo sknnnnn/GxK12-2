@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminShippingOverview, SHIPMENT_STATUS_LABELS } from "@/services/shipping/shipments";
 import styles from "../pedidos/page.module.css";
 import detailStyles from "../pedidos/[id]/page.module.css";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import { retryShipmentAction } from "./actions";
 
 function formatDateTime(iso: string | null): string {
@@ -53,9 +54,9 @@ export default async function AdminEnviosPage(props: PageProps<"/admin/envios">)
                   <td>{formatDateTime(order.createdAt)}</td>
                   <td>
                     <form action={retryShipmentAction.bind(null, order.orderId, "/admin/envios")}>
-                      <button type="submit" className={styles.applyButton}>
+                      <SubmitButton className={styles.applyButton} pendingText="Creando envío…">
                         Crear envío
-                      </button>
+                      </SubmitButton>
                     </form>
                   </td>
                 </tr>
@@ -102,9 +103,9 @@ export default async function AdminEnviosPage(props: PageProps<"/admin/envios">)
                   <td>
                     {shipment.status === "failed" && (
                       <form action={retryShipmentAction.bind(null, shipment.orderId, "/admin/envios")}>
-                        <button type="submit" className={styles.applyButton}>
+                        <SubmitButton className={styles.applyButton} pendingText="Reintentando…">
                           Reintentar
-                        </button>
+                        </SubmitButton>
                       </form>
                     )}
                   </td>

@@ -7,6 +7,7 @@ import {
   type ProductStatus,
   type StockStatus,
 } from "@/services/admin";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import { updateStockAction } from "./actions";
 import styles from "./page.module.css";
 
@@ -31,6 +32,8 @@ const STOCK_STATUS_BADGE_CLASS: Record<StockStatus, string> = {
 
 const STOCK_STATUSES = ["all", "out_of_stock", "low_stock", "in_stock"] as const;
 const SORTS = ["product_asc", "stock_asc", "stock_desc"] as const;
+// ?variante= (en español en la URL, como el resto de los filtros) -> InventoryFilters.variantActivity.
+const VARIANT_ACTIVITY_PARAMS = { activas: "active", inactivas: "inactive" } as const;
 
 function isProductStatus(value: string): value is ProductStatus {
   return (PRODUCT_STATUSES as readonly string[]).includes(value);
@@ -53,6 +56,10 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
     ? (stockStatusParam as (typeof STOCK_STATUSES)[number])
     : "all";
 
+  const variantParam = typeof searchParams.variante === "string" ? searchParams.variante : undefined;
+  const variantActivity =
+    variantParam === "activas" || variantParam === "inactivas" ? VARIANT_ACTIVITY_PARAMS[variantParam] : "all";
+
   const sortParam = typeof searchParams.orden === "string" ? searchParams.orden : undefined;
   const sort = (SORTS as readonly string[]).includes(sortParam ?? "") ? (sortParam as (typeof SORTS)[number]) : "product_asc";
 
@@ -61,7 +68,7 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
 
   const supabase = await createSupabaseServerClient();
   const [items, categories] = await Promise.all([
-    getInventoryItems(supabase, { search, categoryId, productStatus, stockStatus, sort }),
+    getInventoryItems(supabase, { search, categoryId, productStatus, stockStatus, variantActivity, sort }),
     getCategoryOptions(supabase),
   ]);
 
@@ -72,6 +79,7 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
   if (categoryId) returnParams.set("categoria", categoryId);
   if (productStatus) returnParams.set("estado", productStatus);
   if (stockStatus !== "all") returnParams.set("stock", stockStatus);
+  if (variantParam && variantActivity !== "all") returnParams.set("variante", variantParam);
   if (sort !== "product_asc") returnParams.set("orden", sort);
   const returnQuery = returnParams.toString();
 
@@ -125,6 +133,15 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
         </label>
 
         <label className={styles.filterField}>
+          Variante
+          <select name="variante" defaultValue={variantActivity === "all" ? "" : variantParam}>
+            <option value="">Todas</option>
+            <option value="activas">Activas</option>
+            <option value="inactivas">Inactivas</option>
+          </select>
+        </label>
+
+        <label className={styles.filterField}>
           Orden
           <select name="orden" defaultValue={sort}>
             <option value="product_asc">Producto (A-Z)</option>
@@ -139,7 +156,9 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
       </form>
 
       {items.length === 0 ? (
-        <p className={styles.emptyState}>No hay variantes que coincidan con estos filtros.</p>
+        <p className={styles.emptyState}>
+          No hay variantes que coincidan con estos filtros. <Link href="/admin/inventario">Quitar filtros</Link>
+        </p>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -190,9 +209,7 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
                     <form action={updateStockAction.bind(null, item.variantId)} className={styles.stockForm}>
                       <input type="hidden" name="returnQuery" value={returnQuery} />
                       <input type="number" name="stock" min="0" step="1" required defaultValue={item.stock} />
-                      <button type="submit" className={styles.saveButton}>
-                        Guardar
-                      </button>
+                      <SubmitButton className={styles.saveButton}>Guardar</SubmitButton>
                     </form>
                   </td>
                 </tr>

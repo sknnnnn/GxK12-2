@@ -72,8 +72,10 @@ export async function getCurrentAdmin(supabase: GxkSupabaseClient): Promise<Admi
 
 export type DashboardSummary = {
   pendingPaymentOrders: number;
-  /** Pedidos con pago confirmado -- proxy de "por despachar" hasta que exista integración real de envíos (ver services/shipping). */
+  /** Pedidos en payment_confirmed: pagados, todavía sin pasar a "preparando". */
   paidAwaitingShipmentOrders: number;
+  /** Envíos cuya alta en el proveedor falló (shipments.status = 'failed', ver services/shipping/shipments). */
+  failedShipments: number;
   totalSalesAmount: number;
   lowStockCount: number;
   outOfStockCount: number;
@@ -84,15 +86,17 @@ export type DashboardSummary = {
  * (orders.status, product_variants.stock) -- nada hardcodeado.
  */
 export async function getDashboardSummary(supabase: GxkSupabaseClient): Promise<DashboardSummary> {
-  const [pendingCount, paidCount, salesRows, stockRows] = await Promise.all([
+  const [pendingCount, paidCount, failedShipmentsCount, salesRows, stockRows] = await Promise.all([
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "payment_confirmed"),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "failed"),
     supabase.from("orders").select("total").in("status", SALE_COUNTED_ORDER_STATUSES),
     supabase.from("product_variants").select("stock").eq("is_active", true).lte("stock", LOW_STOCK_THRESHOLD),
   ]);
 
   if (pendingCount.error) throw pendingCount.error;
   if (paidCount.error) throw paidCount.error;
+  if (failedShipmentsCount.error) throw failedShipmentsCount.error;
   if (salesRows.error) throw salesRows.error;
   if (stockRows.error) throw stockRows.error;
 
@@ -102,6 +106,7 @@ export async function getDashboardSummary(supabase: GxkSupabaseClient): Promise<
   return {
     pendingPaymentOrders: pendingCount.count ?? 0,
     paidAwaitingShipmentOrders: paidCount.count ?? 0,
+    failedShipments: failedShipmentsCount.count ?? 0,
     totalSalesAmount,
     lowStockCount: stocks.filter((stock) => stock > 0).length,
     outOfStockCount: stocks.filter((stock) => stock === 0).length,
@@ -109,6 +114,8 @@ export async function getDashboardSummary(supabase: GxkSupabaseClient): Promise<
 }
 
 export type RecentOrderRow = {
+  /** orders.id -- para linkear al detalle en Admin (/admin/pedidos/[id]). */
+  id: string;
   orderNumber: string;
   createdAt: string;
   customerName: string | null;
@@ -158,6 +165,7 @@ export async function getRecentOrders(supabase: GxkSupabaseClient, limit = 10): 
   }
 
   return orders.map((order) => ({
+    id: order.id,
     orderNumber: order.order_number,
     createdAt: order.created_at,
     customerName: order.customers?.name ?? null,
@@ -168,6 +176,7 @@ export async function getRecentOrders(supabase: GxkSupabaseClient, limit = 10): 
 }
 
 export type StockAlertVariant = {
+  productId: string;
   productName: string;
   variantLabel: string | null;
   sku: string | null;
@@ -179,7 +188,7 @@ export type StockAlerts = {
   outOfStock: StockAlertVariant[];
 };
 
-type StockAlertQueryRow = Pick<Tables<"product_variants">, "sku" | "stock"> & {
+type StockAlertQueryRow = Pick<Tables<"product_variants">, "product_id" | "sku" | "stock"> & {
   products: Pick<Tables<"products">, "name"> | null;
   sizes: Pick<Tables<"sizes">, "name"> | null;
   colors: Pick<Tables<"colors">, "name"> | null;
@@ -194,7 +203,7 @@ type StockAlertQueryRow = Pick<Tables<"product_variants">, "sku" | "stock"> & {
 export async function getStockAlerts(supabase: GxkSupabaseClient): Promise<StockAlerts> {
   const { data, error } = await supabase
     .from("product_variants")
-    .select("sku, stock, products ( name ), sizes ( name ), colors ( name )")
+    .select("product_id, sku, stock, products ( name ), sizes ( name ), colors ( name )")
     .eq("is_active", true)
     .lte("stock", LOW_STOCK_THRESHOLD)
     .order("stock", { ascending: true })
@@ -203,6 +212,7 @@ export async function getStockAlerts(supabase: GxkSupabaseClient): Promise<Stock
   if (error) throw error;
 
   const variants: StockAlertVariant[] = (data ?? []).map((row) => ({
+    productId: row.product_id,
     productName: row.products?.name ?? "Producto sin nombre",
     variantLabel: [row.sizes?.name, row.colors?.name].filter(Boolean).join(" / ") || null,
     sku: row.sku,

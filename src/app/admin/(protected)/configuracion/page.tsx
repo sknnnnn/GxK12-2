@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getShippingSettings } from "@/services/shipping";
 import formStyles from "../productos/ProductForm.module.css";
 import styles from "../pedidos/[id]/page.module.css";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import { updateShippingSettingsAction } from "./actions";
 
 // Configuración de envíos (PRO-128): proveedor activo, costo fijo cobrado
@@ -118,9 +119,7 @@ export default async function AdminConfiguracionPage(props: PageProps<"/admin/co
           </div>
         </fieldset>
 
-        <button type="submit" className={formStyles.submitButton}>
-          Guardar configuración
-        </button>
+        <SubmitButton className={formStyles.submitButton}>Guardar configuración</SubmitButton>
       </form>
     </div>
   );
