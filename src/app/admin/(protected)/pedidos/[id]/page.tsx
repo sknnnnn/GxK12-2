@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminOrderById, ORDER_STATUS_TRANSITIONS, type OrderStatus } from "@/services/admin";
 import { formatPrice } from "@/lib/format";
 import { updateOrderStatusAction } from "../actions";
+import { retryShipmentAction } from "../../envios/actions";
+import { SHIPMENT_STATUS_LABELS } from "@/services/shipping/shipments";
 import styles from "./page.module.css";
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -50,6 +52,7 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
 
   const errorMessage = typeof searchParams.error === "string" ? searchParams.error : null;
   const showSuccess = searchParams.success === "1";
+  const showShipmentSuccess = searchParams.success === "envio";
 
   const allowedNext = ORDER_STATUS_TRANSITIONS[order.status as OrderStatus] ?? [];
   const latestPayment = order.payments[0] ?? null;
@@ -66,6 +69,7 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
 
       {errorMessage && <p className={styles.error}>{errorMessage}</p>}
       {showSuccess && <p className={styles.success}>Estado actualizado.</p>}
+      {showShipmentSuccess && <p className={styles.success}>Envío dado de alta.</p>}
 
       <div className={styles.summaryGrid}>
         <div className={styles.summaryCard}>
@@ -83,7 +87,9 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
         <div className={styles.summaryCard}>
           <span className={styles.summaryLabel}>Estado del envío</span>
           {order.shipment ? (
-            <span className={styles.badge}>{order.shipment.status ?? "Sin estado"}</span>
+            <span className={styles.badge}>
+              {order.shipment.status ? (SHIPMENT_STATUS_LABELS[order.shipment.status] ?? order.shipment.status) : "Sin estado"}
+            </span>
           ) : (
             <span className={styles.muted}>Sin envío</span>
           )}
@@ -247,10 +253,34 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
               </dd>
               <dt>Costo</dt>
               <dd>{order.shipment.cost !== null ? formatPrice(order.shipment.cost) : "—"}</dd>
+              <dt>Intentos de alta</dt>
+              <dd>{order.shipment.attempts}</dd>
+              {order.shipment.lastError && (
+                <>
+                  <dt>Incidencia</dt>
+                  <dd>{order.shipment.lastError}</dd>
+                </>
+              )}
             </dl>
+            {order.shipment.status === "failed" && (
+              <form action={retryShipmentAction.bind(null, order.id, `/admin/pedidos/${order.id}`)}>
+                <button type="submit" className={styles.transitionButton}>
+                  Reintentar alta del envío
+                </button>
+              </form>
+            )}
           </>
         ) : (
-          <p className={styles.emptyState}>Todavía no hay ningún envío registrado para este pedido.</p>
+          <>
+            <p className={styles.emptyState}>Todavía no hay ningún envío registrado para este pedido.</p>
+            {(order.status === "payment_confirmed" || order.status === "preparing") && (
+              <form action={retryShipmentAction.bind(null, order.id, `/admin/pedidos/${order.id}`)}>
+                <button type="submit" className={styles.transitionButton}>
+                  Crear envío
+                </button>
+              </form>
+            )}
+          </>
         )}
       </section>
     </div>

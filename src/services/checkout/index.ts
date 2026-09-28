@@ -17,6 +17,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import { revalidateCartItems, type CartItemInput, type CartValidationIssue, type ValidatedCartLine } from "@/services/cart";
 import { createOrderPayment } from "@/services/payments";
+import { getShippingSettings, resolveCheckoutShipping } from "@/services/shipping";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 // Sin cuenta obligatoria (guest checkout): solo lo mínimo para poder
@@ -54,6 +55,9 @@ export type CheckoutIssue =
   // error del pedido en sí, hay que reintentar con el carrito actualizado.
   | { type: "stock_changed" }
   | { type: "order_creation_failed"; message: string }
+  // GXK todavía no configuró proveedor activo y/o costo de envío (Admin >
+  // Configuración): no se crea el pedido en vez de cobrar un envío inventado.
+  | { type: "shipping_unavailable" }
   // Payload con una forma inesperada (ver src/app/(storefront)/checkout/actions.ts):
   // el Server Action es un POST alcanzable directamente, no solo desde la UI.
   | { type: "malformed_request" };
@@ -97,13 +101,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // de orders; no hay UX construida sobre este valor en esta etapa.
 const LOOKUP_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Costo y método de envío: deliberadamente sin definir todavía (Andreani /
-// Correo Argentino, ver services/shipping). Se usa un placeholder explícito
-// en vez de inventar una cotización -- create_order_with_reservation exige
-// ambos valores (shipping_method NOT NULL, chk_order_total = subtotal +
-// shipping_cost), así que no pueden quedar ausentes.
-const SHIPPING_METHOD_PLACEHOLDER = "pending_definition";
-const SHIPPING_COST_PLACEHOLDER = 0;
+// Costo y método de envío (PRO-128): salen SIEMPRE de shipping_settings
+// (services/shipping/settings.ts), leídos acá server-side -- el navegador
+// no manda ni puede influir en ninguno de los dos. orders.shipping_method
+// guarda el proveedor activo al momento de la compra (informativo: el envío
+// real se da de alta con el proveedor activo al confirmarse el pago, ver
+// services/shipping/shipments.ts).
 
 function validateBuyerInput(customer: CheckoutCustomerInput, shipping: CheckoutShippingInput): CheckoutIssue[] {
   const issues: CheckoutIssue[] = [];
@@ -162,6 +165,12 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
     return { ok: false, issues: validation.issues };
   }
 
+  const shippingTerms = resolveCheckoutShipping(await getShippingSettings(supabase));
+  if (!shippingTerms.ok) {
+    console.error(`[checkout] envíos sin configurar (falta: ${shippingTerms.missing.join(", ")}); pedido rechazado.`);
+    return { ok: false, issues: [{ type: "shipping_unavailable" }] };
+  }
+
   const lookupToken = randomBytes(32).toString("hex");
   const lookupTokenHash = createHash("sha256").update(lookupToken).digest("hex");
   const lookupTokenExpiresAt = new Date(Date.now() + LOOKUP_TOKEN_TTL_MS).toISOString();
@@ -171,14 +180,14 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
     p_customer_email: input.customer.email.trim().toLowerCase(),
     p_customer_phone: input.customer.phone.trim(),
     p_items: validation.lines.map((line) => ({ variant_id: line.variantId, quantity: line.quantity })),
-    p_shipping_method: SHIPPING_METHOD_PLACEHOLDER,
+    p_shipping_method: shippingTerms.provider,
     p_shipping_address: {
       address: input.shipping.address.trim(),
       locality: input.shipping.locality.trim(),
       province: input.shipping.province.trim(),
       postalCode: input.shipping.postalCode.trim(),
     },
-    p_shipping_cost: SHIPPING_COST_PLACEHOLDER,
+    p_shipping_cost: shippingTerms.cost,
     p_lookup_token_hash: lookupTokenHash,
     p_lookup_token_expires_at: lookupTokenExpiresAt,
   });
@@ -193,11 +202,16 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
   // se refleja únicamente en `payment`, ver CheckoutPaymentStatus.
   const paymentResult = await createOrderPayment({
     orderNumber: data.order_number,
-    items: validation.lines.map((line) => ({
-      title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
-      quantity: line.quantity,
-      unitPrice: line.unitPrice,
-    })),
+    items: [
+      ...validation.lines.map((line) => ({
+        title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+      })),
+      // El monto a pagar tiene que coincidir con orders.total (subtotal +
+      // envío): el envío va como un ítem más de la preference.
+      ...(data.shipping_cost > 0 ? [{ title: "Envío", quantity: 1, unitPrice: data.shipping_cost }] : []),
+    ],
     siteUrl: input.siteUrl,
     lookupToken,
   });

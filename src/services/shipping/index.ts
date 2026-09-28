@@ -11,18 +11,16 @@
 // excepción esperada: es un selector puro (sin acceso a datos), no necesita
 // cliente.
 //
-// Estado de esta etapa: SOLO arquitectura. getShippingProvider ya permite
-// que el checkout (en una etapa futura) trabaje contra "un ShippingProvider"
-// sin acoplarse a Andreani o Correo Argentino directamente -- pero ningún
-// adapter tiene todavía credenciales ni llama a una API real (ver
-// src/services/shipping/providers/**, cada uno documenta exactamente qué
-// falta confirmar/obtener de cada proveedor).
-//
-// Nota para cuando se integre un proveedor real: la creación del envío
-// (createShipment) debe dispararse recién cuando orders.status pasa a
-// 'payment_confirmed' (ver services/payments.recordPaymentResult), nunca
-// desde el checkout -- no tiene sentido reservarle un envío a Andreani o
-// Correo Argentino para un pedido que todavía puede no pagarse.
+// Estado (PRO-128): el flujo ya está conectado de punta a punta --
+// - Proveedor activo, costo fijo y datos de despacho: ./settings.ts
+//   (tabla shipping_settings, editable desde Admin > Configuración).
+// - Alta del envío recién con el pago confirmado (webhook de Mercado Pago),
+//   idempotente y sin tocar pago/stock si falla: ./shipments.ts
+//   (se importa desde "@/services/shipping/shipments", no se re-exporta
+//   acá para no generar un import circular).
+// Lo que sigue bloqueado es la llamada real de cada adapter
+// (src/services/shipping/providers/**): credenciales y contratos de GXK
+// con Andreani/Correo Argentino.
 
 import { AndreaniShippingProvider } from "./providers/andreani";
 import { CorreoArgentinoShippingProvider } from "./providers/correoArgentino";
@@ -34,6 +32,8 @@ import {
   type ShippingProvider,
   type ShippingProviderId,
 } from "./provider";
+
+export * from "./settings";
 
 const providers: Record<ShippingProviderId, ShippingProvider> = {
   andreani: new AndreaniShippingProvider(),
@@ -54,10 +54,9 @@ export function getShippingProvider(id: ShippingProviderId): ShippingProvider {
 // ----------------------------------------------------------------------------
 // resolveShippingParcel (PRO-125 §5/§14) -- traduce productos del catálogo
 // (con sus datos físicos de PRO-127) a un ShippingParcel, que es lo que
-// espera ShippingProvider.quote/createShipment. Todavía no la llama nadie:
-// conectarla a un pedido real (leer order_items + products, y disparar esto
-// recién en payment_confirmed) es la orquestación de una etapa futura
-// (PRO-126/128) -- ver nota de más arriba. Se agrega ahora porque el
+// espera ShippingProvider.quote/createShipment. La llama
+// shipments.ensureShipmentForPaidOrder (PRO-128) con los order_items +
+// products del pedido ya pagado. Se agregó antes que esa orquestación porque el
 // chequeo de "faltan datos físicos" tiene que existir ANTES de esa
 // orquestación, no dentro de cada adapter (ShippingParcel ya llega con
 // números no-nulos por tipo -- para cuando un provider la recibe, ya tiene

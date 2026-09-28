@@ -61,6 +61,8 @@ function describeIssue(issue: CheckoutIssue, labelByVariant: Map<string, string>
       return "El email ingresado no es válido.";
     case "stock_changed":
       return "El stock de uno o más productos cambió mientras confirmábamos tu pedido. Revisá tu carrito e intentá de nuevo.";
+    case "shipping_unavailable":
+      return "Los envíos no están disponibles en este momento, por lo que no podemos tomar tu pedido. Probá de nuevo más tarde.";
     case "malformed_request":
     case "order_creation_failed":
       return "No pudimos procesar tu pedido. Probá de nuevo en unos segundos.";

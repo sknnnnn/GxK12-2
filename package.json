@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --conditions=react-server --experimental-transform-types --no-warnings=ExperimentalWarning --import ./scripts/test-hooks.mjs --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

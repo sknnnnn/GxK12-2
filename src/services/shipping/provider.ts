@@ -177,6 +177,12 @@ export type CreateShipmentResult = {
    * definitiva del proveedor, no asumir "created" como estado final único.
    */
   status: "created" | "processing";
+  /**
+   * URL oficial de la etiqueta, SOLO si el proveedor la devuelve en la
+   * respuesta de alta -- mapea a shipments.label_url. Nunca construirla a
+   * mano: si el proveedor solo entrega el PDF vía getLabel, queda undefined.
+   */
+  labelUrl?: string;
   /** Respuesta cruda del proveedor, para debug. No se persiste todavía (shipments no tiene una columna para esto en esta etapa). */
   raw: unknown;
 };

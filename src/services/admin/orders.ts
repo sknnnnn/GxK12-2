@@ -231,6 +231,9 @@ export type AdminOrderShipment = {
   status: string | null;
   destinationType: string | null;
   destinationData: unknown;
+  /** Incidencia del último intento de alta (PRO-128), null si no hubo error. */
+  lastError: string | null;
+  attempts: number;
 };
 
 export type OrderShippingAddress = {
@@ -293,7 +296,7 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
       .order("created_at", { ascending: false }),
     supabase
       .from("shipments")
-      .select("provider, service_type, external_id, tracking_number, label_url, cost, status, destination_type, destination_data")
+      .select("provider, service_type, external_id, tracking_number, label_url, cost, status, destination_type, destination_data, last_error, attempts")
       .eq("order_id", id)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -371,6 +374,8 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
           status: shipmentRow.status,
           destinationType: shipmentRow.destination_type,
           destinationData: shipmentRow.destination_data,
+          lastError: shipmentRow.last_error,
+          attempts: shipmentRow.attempts,
         }
       : null,
   };

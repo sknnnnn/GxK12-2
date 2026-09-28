@@ -1,6 +1,24 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPayment } from "@/lib/mercadopago/client";
 import { recordPaymentResult, verifyWebhookSignature } from "@/services/payments";
+import { ensureShipmentForPaidOrder } from "@/services/shipping/shipments";
+import type { GxkSupabaseClient } from "@/lib/supabase/types";
+
+// PRO-128: con el pago ya registrado como aprobado, se intenta dar de alta
+// el envío. ensureShipmentForPaidOrder es idempotente (reintentos de este
+// webhook no duplican envíos) y nunca toca payments/orders/stock. Cualquier
+// fallo acá se loguea y NO cambia la respuesta: el pago ya quedó aplicado,
+// y la incidencia se resuelve desde Admin > Envíos (reintento manual).
+async function createShipmentAfterPayment(supabase: GxkSupabaseClient, orderId: string) {
+  try {
+    const shipment = await ensureShipmentForPaidOrder(supabase, orderId);
+    if (!shipment.ok && shipment.reason !== "already_exists" && shipment.reason !== "in_progress") {
+      console.error(`[mercado-pago webhook] envío no creado para pedido ${orderId}: ${shipment.reason}`);
+    }
+  } catch (error) {
+    console.error(`[mercado-pago webhook] error inesperado creando el envío del pedido ${orderId}:`, error);
+  }
+}
 
 // Webhook de Mercado Pago (Checkout Pro). El retorno del navegador NUNCA es
 // la fuente de verdad del estado de un pago (ver services/checkout y
@@ -57,6 +75,8 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       console.error(`[mercado-pago webhook] recordPaymentResult falló (${result.reason}) para payment ${dataId}`);
+    } else if (payment.status === "approved") {
+      await createShipmentAfterPayment(supabase, result.orderId);
     }
   } catch (error) {
     console.error("[mercado-pago webhook] error procesando notificación:", error);

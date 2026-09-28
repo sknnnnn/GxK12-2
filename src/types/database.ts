@@ -559,6 +559,7 @@ export type Database = {
       }
       shipments: {
         Row: {
+          attempts: number
           cost: number | null
           created_at: string
           destination_data: Json
@@ -566,6 +567,8 @@ export type Database = {
           external_id: string | null
           id: string
           label_url: string | null
+          last_attempt_at: string | null
+          last_error: string | null
           order_id: string
           provider: string
           service_type: string | null
@@ -574,6 +577,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attempts?: number
           cost?: number | null
           created_at?: string
           destination_data?: Json
@@ -581,6 +585,8 @@ export type Database = {
           external_id?: string | null
           id?: string
           label_url?: string | null
+          last_attempt_at?: string | null
+          last_error?: string | null
           order_id: string
           provider: string
           service_type?: string | null
@@ -589,6 +595,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attempts?: number
           cost?: number | null
           created_at?: string
           destination_data?: Json
@@ -596,6 +603,8 @@ export type Database = {
           external_id?: string | null
           id?: string
           label_url?: string | null
+          last_attempt_at?: string | null
+          last_error?: string | null
           order_id?: string
           provider?: string
           service_type?: string | null
@@ -612,6 +621,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_settings: {
+        Row: {
+          active_provider: string | null
+          id: boolean
+          origin_address: Json | null
+          origin_contact: Json | null
+          service_type: string | null
+          shipping_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          active_provider?: string | null
+          id?: boolean
+          origin_address?: Json | null
+          origin_contact?: Json | null
+          service_type?: string | null
+          shipping_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active_provider?: string | null
+          id?: boolean
+          origin_address?: Json | null
+          origin_contact?: Json | null
+          service_type?: string | null
+          shipping_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       sizes: {
         Row: {

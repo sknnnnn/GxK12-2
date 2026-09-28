@@ -12,7 +12,10 @@ GXK tiene tres superficies (Storefront Web, Admin Web, y a futuro GXK Desktop) s
 npm install
 cp .env.example .env.local   # completar con las credenciales del proyecto Supabase
 npm run dev
+npm test                     # tests de GXK Core (node:test, sin APIs externas)
 ```
+
+Envíos (proveedor activo, costo, alta post-pago y pendientes): ver [`docs/shipping.md`](./docs/shipping.md).
 
 Abrir [http://localhost:3000](http://localhost:3000).
 

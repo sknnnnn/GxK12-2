@@ -137,7 +137,9 @@ const KNOWN_PAYMENT_STATUSES = new Set([
 ]);
 
 export type RecordPaymentResultResult =
-  | { ok: true }
+  // orderId: para que quien llama (webhook) pueda disparar la etapa
+  // siguiente -- ej. services/shipping/shipments.ensureShipmentForPaidOrder.
+  | { ok: true; orderId: string }
   | { ok: false; reason: "missing_external_reference" | "unknown_status" | "order_not_found" };
 
 export async function recordPaymentResult(
@@ -151,7 +153,7 @@ export async function recordPaymentResult(
     return { ok: false, reason: "unknown_status" };
   }
 
-  const { error } = await supabase.rpc("record_payment_result", {
+  const { data, error } = await supabase.rpc("record_payment_result", {
     p_order_number: payment.externalReference,
     p_provider: "mercado_pago",
     p_external_id: payment.id,
@@ -168,5 +170,5 @@ export async function recordPaymentResult(
     throw error;
   }
 
-  return { ok: true };
+  return { ok: true, orderId: data.order_id };
 }
