@@ -59,6 +59,13 @@ function cartReducer(state: CartState, action: CartAction): CartState {
   }
 }
 
+// `hydrated`: ya se leyó localStorage (ver CartProvider). Vive en el mismo
+// reducer para que la carga y la marca de "hidratado" sean un único dispatch.
+function hydratingCartReducer(state: CartState & { hydrated: boolean }, action: CartAction) {
+  if (action.type === "HYDRATE") return { lines: action.lines, hydrated: true };
+  return { ...cartReducer(state, action), hydrated: state.hydrated };
+}
+
 type CartContextValue = {
   lines: CartLine[];
   itemCount: number;
@@ -82,15 +89,19 @@ const CartContext = createContext<CartContextValue | null>(null);
  * el carrito vacío) y persiste automáticamente cada cambio.
  */
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, { lines: [] });
+  const [state, dispatch] = useReducer(hydratingCartReducer, { lines: [], hydrated: false });
 
   useEffect(() => {
     dispatch({ type: "HYDRATE", lines: loadCart() });
   }, []);
 
+  // No se persiste nada hasta haber hidratado: si no, el primer render
+  // (carrito vacío) pisa localStorage con []. En producción el load corre
+  // antes y no se nota, pero con StrictMode (next dev) el efecto de carga se
+  // vuelve a ejecutar DESPUÉS de ese save y vaciaba el carrito en cada recarga.
   useEffect(() => {
-    saveCart(state.lines);
-  }, [state.lines]);
+    if (state.hydrated) saveCart(state.lines);
+  }, [state.hydrated, state.lines]);
 
   const value = useMemo<CartContextValue>(() => {
     const itemCount = state.lines.reduce((sum, line) => sum + line.quantity, 0);

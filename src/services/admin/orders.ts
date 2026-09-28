@@ -414,8 +414,19 @@ export async function updateOrderStatus(
     return { ok: false, reason: "invalid_transition" };
   }
 
-  const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", orderId);
+  // Condicional sobre el estado que se acaba de validar: si entre la lectura
+  // y este UPDATE otro proceso cambió el pedido (ej. release_expired_stock_
+  // reservations lo canceló y devolvió el stock, o el webhook lo pasó a
+  // refunded), no se pisa ese cambio -- un "pago confirmado" escrito sobre
+  // un pedido ya cancelado dejaría un pedido pagado sin stock reservado.
+  const { data: updated, error } = await supabase
+    .from("orders")
+    .update({ status: newStatus })
+    .eq("id", orderId)
+    .eq("status", current.status)
+    .select("id");
   if (error) throw error;
+  if (!updated || updated.length === 0) return { ok: false, reason: "invalid_transition" };
 
   return { ok: true };
 }

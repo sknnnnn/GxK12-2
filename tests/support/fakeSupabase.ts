@@ -16,6 +16,8 @@ export type FakeSupabaseOptions = {
   rpc?: (fn: string, args: Row) => Result;
   /** Fallo forzado de una operación: devuelve `error` en vez de ejecutarla. */
   failOn?: (table: string, op: "select" | "insert" | "update") => Result["error"];
+  /** Se ejecuta después de cada operación: permite simular un proceso concurrente que modifica datos entre dos queries. */
+  afterExecute?: (table: string, op: "select" | "insert" | "update", tables: Record<string, Row[]>) => void;
 };
 
 // Refleja uq_shipments_order_active (migración shipping_flow).
@@ -139,7 +141,9 @@ export function createFakeSupabase(tables: Record<string, Row[]>, options: FakeS
       onFulfilled?: ((value: Result) => T1 | PromiseLike<T1>) | null,
       onRejected?: ((reason: unknown) => T2 | PromiseLike<T2>) | null,
     ): PromiseLike<T1 | T2> {
-      return Promise.resolve(this.execute()).then(onFulfilled, onRejected);
+      const result = this.execute();
+      options.afterExecute?.(this.table, this.op, tables);
+      return Promise.resolve(result).then(onFulfilled, onRejected);
     }
   }
 
