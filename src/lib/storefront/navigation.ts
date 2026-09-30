@@ -31,7 +31,7 @@ export const MENU_LINKS: SiteLink[] = [
 // CARRITO no figura acá: lo renderiza CartLink (necesita el contador del carrito).
 export const ACCESS_LINKS: SiteLink[] = [
   { key: "buscar", label: "BUSCAR", href: "/buscar" },
-  { key: "familia", label: "FAMILIA GxK 🐾", href: null, dependsOn: "Bloque 6 — Familia GxK (registro, Mi Casa)" },
+  { key: "familia", label: "FAMILIA GxK 🐾", href: "/familia" },
   { key: "favoritos", label: "FAVORITOS", href: "/favoritos" },
 ];
 

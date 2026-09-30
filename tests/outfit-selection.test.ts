@@ -28,6 +28,7 @@ function piece(productId: string, variants: CatalogVariant[], variantId: string 
     sizes: [],
     colors: [],
     inStock: variants.some((v) => v.inStock),
+    membersOnlyUntil: null,
   };
   return { product, variantId };
 }

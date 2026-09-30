@@ -77,7 +77,15 @@ export type Database = {
           title?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "adventure_chapters_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "adventure_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       adventure_seasons: {
         Row: {
@@ -151,6 +159,133 @@ export type Database = {
           title?: string
           updated_at?: string
           video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adventures_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "adventure_chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_events: {
+        Row: {
+          created_at: string
+          entry_id: string | null
+          event: string
+          id: number
+          order_id: string | null
+          outfit_id: string | null
+          path: string | null
+          product_id: string | null
+          quantity: number | null
+          query: string | null
+          session_id: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          entry_id?: string | null
+          event: string
+          id?: never
+          order_id?: string | null
+          outfit_id?: string | null
+          path?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          query?: string | null
+          session_id: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string | null
+          event?: string
+          id?: never
+          order_id?: string | null
+          outfit_id?: string | null
+          path?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          query?: string | null
+          session_id?: string
+          value?: number | null
+        }
+        Relationships: []
+      }
+      camino_rewards: {
+        Row: {
+          created_at: string
+          cycle: number
+          discount_amount: number | null
+          id: string
+          order_id: string | null
+          percent: number | null
+          station: number
+          status: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          cycle: number
+          discount_amount?: number | null
+          id?: string
+          order_id?: string | null
+          percent?: number | null
+          station: number
+          status?: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          cycle?: number
+          discount_amount?: number | null
+          id?: string
+          order_id?: string | null
+          percent?: number | null
+          station?: number
+          status?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camino_rewards_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      camino_settings: {
+        Row: {
+          conditions: string | null
+          id: boolean
+          max_discount_amount: number | null
+          rewards_enabled: boolean
+          station10_percent: number | null
+          updated_at: string
+        }
+        Insert: {
+          conditions?: string | null
+          id?: boolean
+          max_discount_amount?: number | null
+          rewards_enabled?: boolean
+          station10_percent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          conditions?: string | null
+          id?: boolean
+          max_discount_amount?: number | null
+          rewards_enabled?: boolean
+          station10_percent?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -305,7 +440,15 @@ export type Database = {
           status?: string
           template?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       events: {
         Row: {
@@ -395,6 +538,166 @@ export type Database = {
           variant_id?: string | null
           variant_label?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "manual_sales_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_sales_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "storefront_product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_addresses: {
+        Row: {
+          apartment: string
+          created_at: string
+          floor: string
+          id: string
+          is_default: boolean
+          label: string
+          locality: string
+          postal_code: string
+          province: string
+          street_name: string
+          street_number: string
+          user_id: string
+        }
+        Insert: {
+          apartment?: string
+          created_at?: string
+          floor?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          locality: string
+          postal_code: string
+          province: string
+          street_name: string
+          street_number: string
+          user_id?: string
+        }
+        Update: {
+          apartment?: string
+          created_at?: string
+          floor?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          locality?: string
+          postal_code?: string
+          province?: string
+          street_name?: string
+          street_number?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      member_favorites: {
+        Row: {
+          created_at: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_favorites_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          order_id: string | null
+          payload: Json
+          read_at: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          order_id?: string | null
+          payload?: Json
+          read_at?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          order_id?: string | null
+          payload?: Json
+          read_at?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_profiles: {
+        Row: {
+          created_at: string
+          first_name: string
+          last_name: string
+          phone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string
+          last_name?: string
+          phone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          first_name?: string
+          last_name?: string
+          phone?: string
+          updated_at?: string
+          user_id?: string
+        }
         Relationships: []
       }
       order_items: {
@@ -474,25 +777,35 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          id?: number
+          id?: never
           order_id: string
           status: string
         }
         Update: {
           created_at?: string
-          id?: number
+          id?: never
           order_id?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       orders: {
         Row: {
           amount_due_online: number | null
           balance_due: number
+          camino_reward_id: string | null
           cancel_reason: string | null
           created_at: string
           customer_id: string
+          discount_amount: number
           id: string
           incidence_reason: string | null
           lookup_token_expires_at: string | null
@@ -514,9 +827,11 @@ export type Database = {
         Insert: {
           amount_due_online?: number | null
           balance_due?: number
+          camino_reward_id?: string | null
           cancel_reason?: string | null
           created_at?: string
           customer_id: string
+          discount_amount?: number
           id?: string
           incidence_reason?: string | null
           lookup_token_expires_at?: string | null
@@ -538,9 +853,11 @@ export type Database = {
         Update: {
           amount_due_online?: number | null
           balance_due?: number
+          camino_reward_id?: string | null
           cancel_reason?: string | null
           created_at?: string
           customer_id?: string
+          discount_amount?: number
           id?: string
           incidence_reason?: string | null
           lookup_token_expires_at?: string | null
@@ -560,6 +877,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_camino_reward_id_fkey"
+            columns: ["camino_reward_id"]
+            isOneToOne: false
+            referencedRelation: "camino_rewards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_customer_id_fkey"
             columns: ["customer_id"]
@@ -807,7 +1131,22 @@ export type Database = {
           sort_order?: number
           value_cm?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "product_measurements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_measurements_size_id_fkey"
+            columns: ["size_id"]
+            isOneToOne: false
+            referencedRelation: "sizes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_variants: {
         Row: {
@@ -880,6 +1219,7 @@ export type Database = {
           id: string
           is_featured: boolean
           length_cm: number | null
+          members_only_until: string | null
           name: string
           price: number
           product_type: string | null
@@ -898,6 +1238,7 @@ export type Database = {
           id?: string
           is_featured?: boolean
           length_cm?: number | null
+          members_only_until?: string | null
           name: string
           price: number
           product_type?: string | null
@@ -916,6 +1257,7 @@ export type Database = {
           id?: string
           is_featured?: boolean
           length_cm?: number | null
+          members_only_until?: string | null
           name?: string
           price?: number
           product_type?: string | null
@@ -1178,7 +1520,15 @@ export type Database = {
           sort_order?: number
           storage_path?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "universe_entry_media_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "universe_entries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       universe_entry_outfits: {
         Row: {
@@ -1196,7 +1546,22 @@ export type Database = {
           outfit_id?: string
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "universe_entry_outfits_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "universe_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "universe_entry_outfits_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       universe_entry_products: {
         Row: {
@@ -1214,7 +1579,22 @@ export type Database = {
           product_id?: string
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "universe_entry_products_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "universe_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "universe_entry_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1255,18 +1635,40 @@ export type Database = {
       }
     }
     Functions: {
-      admin_record_manual_sale: {
-        Args: { p_channel: string; p_note: string | null; p_quantity: number; p_variant_id: string }
+      admin_analytics_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      admin_broadcast_notification: {
+        Args: { p_body: string | null; p_link: string | null; p_title: string }
         Returns: number
       }
-      admin_cancel_order: { Args: { p_order_id: string; p_reason: string }; Returns: undefined }
-      admin_register_manual_payment: { Args: { p_amount: number; p_order_id: string }; Returns: string }
+      admin_cancel_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_record_manual_sale: {
+        Args: {
+          p_channel: string
+          p_note: string | null
+          p_quantity: number
+          p_variant_id: string
+        }
+        Returns: number
+      }
+      admin_register_manual_payment: {
+        Args: { p_amount: number; p_order_id: string }
+        Returns: string
+      }
+      camino_confirmed_count: { Args: { p_user_id: string }; Returns: number }
       confirm_order_payment: { Args: { p_order_id: string }; Returns: string }
       create_order: {
         Args: {
+          p_camino_reward_id?: string | null
           p_customer_email: string
           p_customer_name: string
           p_customer_phone: string
+          p_is_member?: boolean
           p_items: Json
           p_lookup_token_expires_at: string
           p_lookup_token_hash: string
@@ -1277,7 +1679,32 @@ export type Database = {
           p_shipping_cost: number
           p_shipping_method: string
         }
-        Returns: Database["public"]["Tables"]["orders"]["Row"]
+        Returns: {
+          amount_due_online: number | null
+          balance_due: number
+          camino_reward_id: string | null
+          cancel_reason: string | null
+          created_at: string
+          customer_id: string
+          discount_amount: number
+          id: string
+          incidence_reason: string | null
+          lookup_token_expires_at: string | null
+          lookup_token_hash: string
+          meeting_point_details: string | null
+          order_number: string
+          payment_expires_at: string | null
+          payment_method: string
+          payment_plan: string
+          shipping_address: Json
+          shipping_cost: number
+          shipping_method: string
+          status: string
+          stock_committed: boolean
+          subtotal: number
+          total: number
+          updated_at: string
+        }
         SetofOptions: {
           from: "*"
           to: "orders"
@@ -1298,17 +1725,27 @@ export type Database = {
           p_shipping_method: string
         }
         Returns: {
+          amount_due_online: number | null
+          balance_due: number
+          camino_reward_id: string | null
+          cancel_reason: string | null
           created_at: string
           customer_id: string
+          discount_amount: number
           id: string
+          incidence_reason: string | null
           lookup_token_expires_at: string | null
           lookup_token_hash: string
+          meeting_point_details: string | null
           order_number: string
           payment_expires_at: string | null
+          payment_method: string
+          payment_plan: string
           shipping_address: Json
           shipping_cost: number
           shipping_method: string
           status: string
+          stock_committed: boolean
           subtotal: number
           total: number
           updated_at: string
@@ -1320,6 +1757,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      current_member_email: { Args: never; Returns: string }
+      is_active_admin: { Args: never; Returns: boolean }
+      is_member: { Args: never; Returns: boolean }
+      is_variant_active: { Args: { p_variant_id: string }; Returns: boolean }
+      member_for_email: { Args: { p_email: string }; Returns: string }
       record_payment_result: {
         Args: {
           p_amount: number
@@ -1349,9 +1791,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      is_active_admin: { Args: never; Returns: boolean }
       release_expired_stock_reservations: { Args: never; Returns: number }
       restore_order_stock: { Args: { p_order_id: string }; Returns: undefined }
+      sync_camino_rewards: { Args: { p_user_id: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never

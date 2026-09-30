@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
+import { EARLY_ACCESS_LABEL, isEarlyAccess } from "@/lib/familia/membersOnly";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getProductBySlug, getProductMeasurements } from "@/services/catalog";
 import { getSiteSettings } from "@/services/site";
 import { DELIVERY_INFO, EXCHANGE_POLICY, SIZE_GUIDE } from "@/lib/storefront/content";
 import { buildWhatsAppHref, productInquiryMessage } from "@/lib/storefront/whatsapp";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
+import { TrackEvent } from "@/components/storefront/analytics/Track";
 import { formatPrice } from "@/lib/format";
 import styles from "./page.module.css";
 
@@ -24,6 +26,7 @@ export default async function ProductoPage({ params }: PageProps<"/producto/[slu
 
   return (
     <main className={styles.main}>
+      <TrackEvent event="product_view" data={{ productId: product.id }} />
       <div className={styles.gallery}>
         {product.images.length > 0 ? (
           product.images.map((image) => (
@@ -37,6 +40,7 @@ export default async function ProductoPage({ params }: PageProps<"/producto/[slu
 
       <div className={styles.info}>
         {product.category && <span className={styles.category}>{product.category.name}</span>}
+        {isEarlyAccess(product.membersOnlyUntil) && <p className={styles.type}>{EARLY_ACCESS_LABEL}</p>}
         <h1>{product.name}</h1>
         {product.productType && <p className={styles.type}>{product.productType}</p>}
         <p className={styles.price}>{formatPrice(product.price)}</p>

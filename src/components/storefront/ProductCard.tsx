@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatPrice } from "@/lib/format";
+import { EARLY_ACCESS_LABEL, isEarlyAccess } from "@/lib/familia/membersOnly";
 import type { CatalogProductSummary } from "@/services/catalog";
 import { FavoriteButton } from "./FavoriteButton";
 import styles from "./ProductCard.module.css";
@@ -24,6 +25,7 @@ export function ProductCard({ product }: { product: CatalogProductSummary }) {
           )}
           {!product.inStock && <span className={styles.badge}>Agotado</span>}
         </div>
+        {isEarlyAccess(product.membersOnlyUntil) && <span className={styles.category}>{EARLY_ACCESS_LABEL}</span>}
         <div className={styles.info}>
           {product.category && <span className={styles.category}>{product.category.name}</span>}
           <h3 className={styles.name}>{product.name}</h3>

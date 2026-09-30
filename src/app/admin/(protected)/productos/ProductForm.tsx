@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { PRODUCT_STATUSES, type AdminCategoryOption, type AdminProductDetail } from "@/services/admin";
 import type { ProductFormState } from "./actions";
+import { isoToLocalInput } from "@/lib/datetime";
 import styles from "./ProductForm.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -18,6 +19,7 @@ type InitialProduct = Pick<
   | "slug"
   | "productType"
   | "description"
+  | "membersOnlyUntil"
   | "composition"
   | "price"
   | "categoryId"
@@ -74,6 +76,12 @@ export function ProductForm({
       <label className={styles.field}>
         Composición
         <input type="text" name="composition" defaultValue={initialProduct?.composition ?? ""} placeholder="Ej. 100% algodón" />
+      </label>
+
+      <label className={styles.field}>
+        MEMBERS ONLY — 24H EARLY ACCESS hasta (opcional)
+        <input type="datetime-local" name="membersOnlyUntil" defaultValue={isoToLocalInput(initialProduct?.membersOnlyUntil ?? null)} />
+        <span>Hasta esa fecha solo lo ven y compran miembros de FAMILIA GxK; después pasa solo a público. Hora de Argentina.</span>
       </label>
 
       <div className={styles.row}>

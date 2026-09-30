@@ -62,6 +62,8 @@ export type CatalogProductSummary = {
   category: CatalogCategory | null;
   primaryImage: CatalogProductImage | null;
   inStock: boolean;
+  /** Members Only — 24H Early Access (Bible §24): vigente mientras sea futura. */
+  membersOnlyUntil: string | null;
 };
 
 export type CatalogVariant = {
@@ -87,6 +89,7 @@ export type CatalogProductDetail = {
   sizes: CatalogSize[];
   colors: CatalogColor[];
   inStock: boolean;
+  membersOnlyUntil: string | null;
 };
 
 // ----------------------------------------------------------------------------
@@ -104,14 +107,14 @@ type ProductImageRow = Pick<
   "id" | "storage_path" | "alt_text" | "is_primary" | "sort_order"
 >;
 
-type ProductListRow = Pick<Tables<"products">, "id" | "slug" | "name" | "product_type" | "price" | "is_featured"> & {
+type ProductListRow = Pick<Tables<"products">, "id" | "slug" | "name" | "product_type" | "price" | "is_featured" | "members_only_until"> & {
   categories: CategoryRow | null;
   product_images: ProductImageRow[];
 };
 
 type ProductDetailRow = Pick<
   Tables<"products">,
-  "id" | "slug" | "name" | "product_type" | "description" | "composition" | "price"
+  "id" | "slug" | "name" | "product_type" | "description" | "composition" | "price" | "members_only_until"
 > & {
   categories: CategoryRow | null;
   product_images: ProductImageRow[];
@@ -175,7 +178,7 @@ async function queryPublishedProducts(
   let query = supabase
     .from("products")
     .select(
-      `id, slug, name, product_type, price, is_featured, ${categoryEmbed}, product_images ( id, storage_path, alt_text, is_primary, sort_order )`,
+      `id, slug, name, product_type, price, is_featured, members_only_until, ${categoryEmbed}, product_images ( id, storage_path, alt_text, is_primary, sort_order )`,
     )
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -231,6 +234,7 @@ async function queryPublishedProducts(
       category: toCategory(row.categories),
       primaryImage: pickPrimaryImage(images),
       inStock: inStockByProduct.get(row.id) ?? false,
+      membersOnlyUntil: row.members_only_until,
     };
   });
 }
@@ -268,7 +272,7 @@ export async function getNewArrivals(
 }
 
 const PRODUCT_DETAIL_SELECT =
-  "id, slug, name, product_type, description, composition, price, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )";
+  "id, slug, name, product_type, description, composition, price, members_only_until, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )";
 
 /**
  * Arma el detalle (imágenes, variantes, talles y colores derivados de sus
@@ -378,6 +382,7 @@ async function buildProductDetails(
         .filter((row) => productColorIds.has(row.id))
         .map((row) => ({ id: row.id, name: row.name, hexCode: row.hex_code })),
       inStock: variants.some((v) => v.inStock),
+      membersOnlyUntil: product.members_only_until,
     };
   });
 }
@@ -531,7 +536,7 @@ export async function getCatalog(
     supabase
       .from("products")
       .select(
-        "id, slug, name, product_type, description, price, is_featured, created_at, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )",
+        "id, slug, name, product_type, description, price, is_featured, members_only_until, created_at, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )",
       )
       .eq("status", "published")
       .order("created_at", { ascending: false })
@@ -575,6 +580,7 @@ export async function getCatalog(
       category: toCategory(row.categories),
       primaryImage: pickPrimaryImage(toImages(supabase, row.product_images ?? [])),
       inStock: variants.some((v) => v.inStock),
+      membersOnlyUntil: row.members_only_until,
       description: row.description,
       createdAt: row.created_at,
       variants,

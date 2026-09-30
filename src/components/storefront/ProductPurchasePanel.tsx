@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/cart/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { cartLineFromVariant } from "@/lib/cart/lines";
+import { track } from "@/lib/analytics/track";
 import { buildWhatsAppHref, productInquiryMessage } from "@/lib/storefront/whatsapp";
 import type { CatalogProductDetail, CatalogVariant } from "@/services/catalog";
 import { VariantSelector } from "./VariantSelector";
@@ -34,6 +35,7 @@ export function ProductPurchasePanel({
   function handleAdd() {
     if (!selectedVariant || !selectedVariant.inStock) return;
     addItem(cartLineFromVariant(product, selectedVariant));
+    track("add_to_cart", { productId: product.id, quantity: 1 });
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1500);
   }

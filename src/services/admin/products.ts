@@ -182,6 +182,8 @@ export type AdminProductDetail = {
   productType: string | null;
   description: string | null;
   composition: string | null;
+  /** Members Only — 24H Early Access (Bible §24). */
+  membersOnlyUntil: string | null;
   price: number;
   status: string;
   isFeatured: boolean;
@@ -204,6 +206,7 @@ type AdminProductDetailQueryRow = Pick<
   | "product_type"
   | "description"
   | "composition"
+  | "members_only_until"
   | "price"
   | "status"
   | "is_featured"
@@ -230,7 +233,7 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, slug, name, product_type, description, composition, price, status, is_featured, category_id, updated_at, weight_grams, length_cm, width_cm, height_cm, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
+      "id, slug, name, product_type, description, composition, members_only_until, price, status, is_featured, category_id, updated_at, weight_grams, length_cm, width_cm, height_cm, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
     )
     .eq("id", id)
     .maybeSingle()
@@ -267,6 +270,7 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
     productType: product.product_type,
     description: product.description,
     composition: product.composition,
+    membersOnlyUntil: product.members_only_until,
     price: product.price,
     status: product.status,
     isFeatured: product.is_featured,
@@ -316,6 +320,8 @@ export type ProductInput = {
   description: string | null;
   /** Composición (Bible §16). */
   composition: string | null;
+  /** Members Only — 24H Early Access hasta (Bible §24); null = público al publicarse. */
+  membersOnlyUntil: string | null;
   price: number;
   categoryId: string;
   status: ProductStatus;
@@ -336,6 +342,7 @@ export async function createProduct(supabase: GxkSupabaseClient, input: ProductI
       product_type: input.productType,
       description: input.description,
       composition: input.composition,
+      members_only_until: input.membersOnlyUntil,
       price: input.price,
       category_id: input.categoryId,
       status: input.status,
@@ -368,6 +375,7 @@ export async function updateProduct(supabase: GxkSupabaseClient, id: string, inp
       product_type: input.productType,
       description: input.description,
       composition: input.composition,
+      members_only_until: input.membersOnlyUntil,
       price: input.price,
       category_id: input.categoryId,
       status: input.status,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart/CartProvider";
@@ -8,6 +8,8 @@ import { formatPrice } from "@/lib/format";
 import type { CheckoutAddressInput, CheckoutCustomerInput, CheckoutIssue } from "@/services/checkout";
 import type { DeliveryMethod, DeliveryMethodId } from "@/services/shipping/delivery";
 import type { PaymentOption } from "@/services/payments/settings";
+import type { MemberAddress } from "@/services/familia";
+import { analyticsSessionId, track } from "@/lib/analytics/track";
 import { submitCheckoutAction } from "./actions";
 import styles from "./page.module.css";
 
@@ -40,6 +42,26 @@ const FIELD_LABELS: Record<string, string> = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Familia GxK (opcional): datos, direcciones y beneficios del Camino usables. */
+export type CheckoutMember = {
+  customer: CheckoutCustomerInput;
+  addresses: MemberAddress[];
+  rewards: { id: string; station: number; percent: number }[];
+  maxDiscountAmount: number | null;
+};
+
+function addressInput(address: MemberAddress): CheckoutAddressInput {
+  return {
+    streetName: address.streetName,
+    streetNumber: address.streetNumber,
+    floor: address.floor,
+    apartment: address.apartment,
+    locality: address.locality,
+    province: address.province,
+    postalCode: address.postalCode,
+  };
+}
+
 function describeIssue(issue: CheckoutIssue): string {
   switch (issue.type) {
     case "empty_cart":
@@ -66,6 +88,10 @@ function describeIssue(issue: CheckoutIssue): string {
       return "No pudimos procesar el pedido. Volvé a intentar.";
     case "order_creation_failed":
       return "No pudimos crear el pedido. Volvé a intentar en un momento.";
+    case "members_only":
+      return "Hay un producto en MEMBERS ONLY — 24H EARLY ACCESS: ingresá a FAMILIA GxK 🐾 para comprarlo.";
+    case "reward_unavailable":
+      return "El beneficio del Camino no está disponible (se usa con el email de tu cuenta).";
   }
 }
 
@@ -79,20 +105,27 @@ function issueStep(issue: CheckoutIssue): number {
 export function CheckoutFlow({
   delivery,
   paymentOptionsByDelivery,
+  member = null,
 }: {
   delivery: (DeliveryMethod & { cost: number })[];
   paymentOptionsByDelivery: Record<DeliveryMethodId, PaymentOption[]>;
+  member?: CheckoutMember | null;
 }) {
   const router = useRouter();
   const { lines, subtotal, hydrated, clear } = useCart();
   const [step, setStep] = useState(0);
-  const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
-  const [address, setAddress] = useState(EMPTY_ADDRESS);
+  const [customer, setCustomer] = useState(member?.customer ?? EMPTY_CUSTOMER);
+  const [address, setAddress] = useState(member?.addresses[0] ? addressInput(member.addresses[0]) : EMPTY_ADDRESS);
+  const [rewardId, setRewardId] = useState<string | null>(null);
   const [deliveryId, setDeliveryId] = useState<DeliveryMethodId | null>(delivery.length === 1 ? delivery[0].id : null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    track("checkout_started");
+  }, []);
 
   if (done) return <p className={styles.muted}>Pedido creado. Te llevamos a la confirmación…</p>;
   if (!hydrated) return <p className={styles.muted}>Cargando…</p>;
@@ -112,7 +145,10 @@ export function CheckoutFlow({
   const paymentOptions = selectedDelivery ? paymentOptionsByDelivery[selectedDelivery.id] ?? [] : [];
   const selectedPayment = paymentOptions.find((option) => option.id === paymentId) ?? null;
   const isCarrier = selectedDelivery !== null && selectedDelivery.id !== "meeting_point";
-  const total = subtotal + (selectedDelivery?.cost ?? 0);
+  const selectedReward = member?.rewards.find((reward) => reward.id === rewardId) ?? null;
+  const rawDiscount = selectedReward ? Math.round(subtotal * selectedReward.percent) / 100 : 0;
+  const discount = member?.maxDiscountAmount != null ? Math.min(rawDiscount, member.maxDiscountAmount) : rawDiscount;
+  const total = subtotal - discount + (selectedDelivery?.cost ?? 0);
   const payNow = selectedPayment
     ? selectedPayment.onlineShare === 0.5
       ? Math.round(total * 50) / 100
@@ -151,11 +187,13 @@ export function CheckoutFlow({
     setErrors([]);
     try {
       const result = await submitCheckoutAction({
-        items: lines.map((line) => ({ variantId: line.variantId, quantity: line.quantity })),
+        items: lines.map((line) => ({ variantId: line.variantId, quantity: line.quantity, outfitId: line.outfitId })),
         customer,
         deliveryMethod: selectedDelivery.id,
         address: isCarrier ? address : null,
         paymentOption: selectedPayment.id,
+        caminoRewardId: rewardId,
+        analyticsSessionId: analyticsSessionId(),
       });
       if (!result.ok) {
         setErrors(result.issues.map(describeIssue));
@@ -216,7 +254,9 @@ export function CheckoutFlow({
       {step === 0 && (
         <form onSubmit={goNext} className={styles.form} noValidate>
           <h2>Datos</h2>
-          <p className={styles.muted}>Comprar no requiere cuenta.</p>
+          <p className={styles.muted}>
+            {member ? "Comprás con tu cuenta de FAMILIA GxK 🐾." : "Comprar no requiere cuenta."}
+          </p>
           {field("firstName", customer.firstName, (v) => setCustomer({ ...customer, firstName: v }), { autoComplete: "given-name" })}
           {field("lastName", customer.lastName, (v) => setCustomer({ ...customer, lastName: v }), { autoComplete: "family-name" })}
           {field("email", customer.email, (v) => setCustomer({ ...customer, email: v }), { type: "email", autoComplete: "email", inputMode: "email" })}
@@ -242,6 +282,24 @@ export function CheckoutFlow({
               </label>
             ))}
           </fieldset>
+          {isCarrier && member && member.addresses.length > 0 && (
+            <label className={styles.field}>
+              Direcciones guardadas
+              <select
+                defaultValue={member.addresses[0].id}
+                onChange={(event) => {
+                  const saved = member.addresses.find((candidate) => candidate.id === event.target.value);
+                  if (saved) setAddress(addressInput(saved));
+                }}
+              >
+                {member.addresses.map((saved) => (
+                  <option key={saved.id} value={saved.id}>
+                    {saved.label || `${saved.streetName} ${saved.streetNumber}, ${saved.locality}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {isCarrier && (
             <div className={styles.address}>
               {field("streetName", address.streetName, (v) => setAddress({ ...address, streetName: v }), { autoComplete: "address-line1" })}
@@ -281,6 +339,24 @@ export function CheckoutFlow({
             </fieldset>
           )}
 
+          {member && member.rewards.length > 0 && (
+            <fieldset className={styles.options}>
+              <legend>Camino G &amp; K 🐾</legend>
+              <label className={styles.option}>
+                <input type="radio" name="reward" checked={rewardId === null} onChange={() => setRewardId(null)} />
+                <span>Sin beneficio</span>
+              </label>
+              {member.rewards.map((reward) => (
+                <label key={reward.id} className={styles.option}>
+                  <input type="radio" name="reward" checked={rewardId === reward.id} onChange={() => setRewardId(reward.id)} />
+                  <span>
+                    Estación {reward.station}: {reward.percent}% OFF en prendas
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+
           <section className={styles.summary} aria-label="Resumen del pedido">
             <ul>
               {lines.map((line) => (
@@ -297,6 +373,12 @@ export function CheckoutFlow({
               <span>Subtotal</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
+            {discount > 0 && (
+              <div className={styles.row}>
+                <span>Camino G &amp; K</span>
+                <span>−{formatPrice(discount)}</span>
+              </div>
+            )}
             <div className={styles.row}>
               <span>{selectedDelivery?.label}</span>
               <span>{formatPrice(selectedDelivery?.cost ?? 0)}</span>

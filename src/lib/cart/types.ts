@@ -22,6 +22,8 @@ export type CartLine = {
   unitPrice: number;
   imageUrl: string | null;
   quantity: number;
+  /** Outfit desde el que se agregó (analytics: outfits comprados, Bible §36). */
+  outfitId?: string;
 };
 
 export type CartState = {

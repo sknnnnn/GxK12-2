@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/lib/cart/CartProvider";
+import { track } from "@/lib/analytics/track";
 import { formatPrice } from "@/lib/format";
 import { evaluateOutfit, pieceKey, resolvePiece } from "@/lib/outfits/selection";
 import type { CatalogVariant } from "@/services/catalog";
@@ -57,6 +58,21 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
   const { addItem } = useCart();
   const [selections, setSelections] = useState<Record<string, CatalogVariant | null>>({});
   const [justAdded, setJustAdded] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
+
+  // Outfits visitados (Bible §36): una vista cuando el outfit entra en pantalla.
+  useEffect(() => {
+    const element = articleRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        track("outfit_view", { outfitId: outfit.id });
+        observer.disconnect();
+      }
+    }, { threshold: 0.5 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [outfit.id]);
 
   const handleSelect = useCallback((key: string, variant: CatalogVariant | null) => {
     setSelections((prev) => (prev[key] === variant ? prev : { ...prev, [key]: variant }));
@@ -66,7 +82,10 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
 
   function handleAddAll() {
     if (!result.complete) return;
-    for (const line of result.lines) addItem(line);
+    for (const line of result.lines) {
+      addItem({ ...line, outfitId: outfit.id });
+      track("add_to_cart", { productId: line.productId, outfitId: outfit.id, quantity: 1 });
+    }
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1500);
   }
@@ -76,7 +95,7 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
   else if (result.needsSelection > 0) hint = "Elegí talle y color de cada pieza para agregar el outfit completo.";
 
   return (
-    <article className={styles.outfit}>
+    <article className={styles.outfit} ref={articleRef}>
       {outfit.coverImageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- mismo criterio que ProductCard: sin next/image todavía.
         <img src={outfit.coverImageUrl} alt={outfit.name} className={styles.outfitCover} />

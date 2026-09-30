@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TrackEvent } from "@/components/storefront/analytics/Track";
 import {
   CATALOG_SORTS,
   CATALOG_SORT_LABELS,
@@ -42,6 +43,7 @@ export function CatalogView({
 
   return (
     <main className={styles.main}>
+      {query.search && <TrackEvent event="search" data={{ query: query.search }} />}
       <h1>{title}</h1>
 
       <nav className={styles.categoryNav} aria-label="Categorías">

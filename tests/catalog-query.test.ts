@@ -34,6 +34,7 @@ function item(id: string, overrides: Partial<CatalogListItem> = {}): CatalogList
     category: { id: "c1", slug: "remeras", name: "Remeras" },
     primaryImage: null,
     inStock: true,
+    membersOnlyUntil: null,
     description: null,
     createdAt: "2026-09-01T00:00:00Z",
     variants: [],

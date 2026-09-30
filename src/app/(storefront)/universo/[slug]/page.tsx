@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUniverseEntryBySlug } from "@/services/universe";
+import { TrackEvent } from "@/components/storefront/analytics/Track";
 import { getProductDetailsByIds } from "@/services/catalog";
 import { getCurrentOutfits } from "@/services/outfits";
 import { formatDateAR } from "@/lib/datetime";
@@ -34,6 +35,7 @@ export default async function UniverseEntryPage({ params }: PageProps<"/universo
 
   return (
     <main className={styles.page}>
+      <TrackEvent event="entry_view" data={{ entryId: entry.id }} />
       <Link href="/universo">← Universo</Link>
       <p className={styles.kicker}>
         {entry.kindLabel} · {formatDateAR(entry.publishedAt)}

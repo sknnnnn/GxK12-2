@@ -1,0 +1,51 @@
+/* Estructura funcional del recorrido. Ilustración y estilo definitivos: Figma. */
+.figure {
+  margin: 0;
+  width: 100%;
+  max-width: 420px;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.path {
+  fill: none;
+  stroke: #999;
+  stroke-width: 4;
+  stroke-dasharray: 8 8;
+}
+
+.station {
+  fill: #fff;
+  stroke: #171717;
+  stroke-width: 2;
+}
+
+.reached {
+  fill: #171717;
+  stroke: #171717;
+  stroke-width: 2;
+}
+
+.number {
+  font-size: 14px;
+  fill: #777;
+}
+
+.reached + .number {
+  fill: #fff;
+}
+
+.label {
+  font-size: 11px;
+  fill: #555;
+}
+
+.walkers {
+  font-size: 15px;
+  font-weight: 700;
+  fill: #171717;
+}

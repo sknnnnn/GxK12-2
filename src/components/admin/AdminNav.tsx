@@ -17,6 +17,8 @@ const NAV_ITEMS = [
   { href: "/admin/aventuras", label: "Aventuras" },
   { href: "/admin/eventos", label: "Eventos" },
   { href: "/admin/contenido", label: "Contenido" },
+  { href: "/admin/familia", label: "Familia GxK" },
+  { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/configuracion", label: "Configuración" },
 ] as const;
 

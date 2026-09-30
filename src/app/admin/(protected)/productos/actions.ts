@@ -1,5 +1,6 @@
 "use server";
 
+import { localInputToIso } from "@/lib/datetime";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -70,6 +71,9 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
   const categoryId = String(formData.get("categoryId") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   const isFeatured = formData.get("isFeatured") === "on";
+  const membersOnlyRaw = String(formData.get("membersOnlyUntil") ?? "").trim();
+  const membersOnlyUntil = membersOnlyRaw ? localInputToIso(membersOnlyRaw) : null;
+  if (membersOnlyRaw && !membersOnlyUntil) return { error: "La fecha de early access no es válida." };
 
   if (!name) return { error: "El nombre es obligatorio." };
   if (!categoryId) return { error: "Elegí una categoría." };
@@ -102,6 +106,7 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
       productType: productType || null,
       description: description || null,
       composition: composition || null,
+      membersOnlyUntil,
       price,
       categoryId,
       status: status as ProductStatus,

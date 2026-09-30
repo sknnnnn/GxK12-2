@@ -31,6 +31,7 @@ import {
   type DeliveryMethodId,
 } from "@/services/shipping/delivery";
 import { sendOrderEmail, trackingUrlFor } from "@/services/emails";
+import { recordAnalyticsEvents } from "@/services/analytics";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 // Paso 1 — Datos.
@@ -63,6 +64,12 @@ export type CheckoutInput = {
   paymentOption: string;
   /** NEXT_PUBLIC_SITE_URL sin barra final -- para armar las URLs de Mercado Pago y de seguimiento. */
   siteUrl: string;
+  /** Familia GxK (Bloque 6): lo resuelve el servidor con la sesión, nunca el navegador. */
+  isMember?: boolean;
+  /** Beneficio del Camino G & K a aplicar (lo valida create_order). */
+  caminoRewardId?: string | null;
+  /** Analytics (Bible §36): sesión anónima y outfit de origen por variante. */
+  attribution?: { sessionId: string; outfitByVariant: Record<string, string> } | null;
 };
 
 export type CheckoutFieldName = keyof CheckoutCustomerInput | keyof CheckoutAddressInput;
@@ -75,6 +82,10 @@ export type CheckoutIssue =
   | { type: "payment_unavailable" }
   // El stock cambió entre la revalidación y la creación del pedido.
   | { type: "stock_changed" }
+  // Producto en MEMBERS ONLY — 24H EARLY ACCESS y quien compra no es miembro.
+  | { type: "members_only" }
+  // El beneficio del Camino ya no se puede usar (o el email no es el de la cuenta).
+  | { type: "reward_unavailable" }
   | { type: "order_creation_failed"; message: string }
   | { type: "malformed_request" };
 
@@ -89,6 +100,7 @@ export type CheckoutOrderSummary = {
   orderNumber: string;
   subtotal: number;
   shippingCost: number;
+  discount: number;
   total: number;
   amountDueOnline: number;
   balanceDue: number;
@@ -132,6 +144,8 @@ export function validateAddress(address: CheckoutAddressInput | null): CheckoutI
 function mapRpcError(error: PostgrestError): CheckoutIssue {
   const message = error.message ?? "";
   if (message.startsWith("empty_order")) return { type: "empty_cart" };
+  if (message.startsWith("members_only")) return { type: "members_only" };
+  if (message.startsWith("reward_unavailable")) return { type: "reward_unavailable" };
   if (message.startsWith("insufficient_stock") || message.startsWith("variant_not_found") || message.startsWith("variant_inactive")) {
     return { type: "stock_changed" };
   }
@@ -197,11 +211,14 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
     p_meeting_point_details: deliveryId === "meeting_point" ? delivery.details : null,
     p_lookup_token_hash: lookupTokenHash,
     p_lookup_token_expires_at: lookupTokenExpiresAt,
+    p_is_member: input.isMember === true,
+    p_camino_reward_id: input.caminoRewardId ?? null,
   });
 
   if (error) return { ok: false, issues: [mapRpcError(error)] };
 
   const total = Number(data.total);
+  const discount = Number(data.discount_amount ?? 0);
   const dueOnline = data.amount_due_online === null ? amountDueOnline(total, option) : Number(data.amount_due_online);
 
   let payment: CheckoutPaymentStatus = { status: "cash" };
@@ -209,7 +226,10 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
     const items =
       option.paymentPlan === "deposit"
         ? [{ title: `Reserva 50% — pedido ${data.order_number}`, quantity: 1, unitPrice: dueOnline }]
-        : [
+        : discount > 0
+          ? // Con beneficio del Camino, un único ítem por el total ya descontado.
+            [{ title: `Pedido ${data.order_number}`, quantity: 1, unitPrice: dueOnline }]
+          : [
             ...validation.lines.map((line) => ({
               title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
               quantity: line.quantity,
@@ -232,6 +252,22 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
       : { status: "unavailable", reason: paymentResult.reason };
   }
 
+  if (input.attribution) {
+    const attribution = input.attribution;
+    await recordAnalyticsEvents(
+      supabase,
+      validation.lines.map((line) => ({
+        event: "order_created" as const,
+        sessionId: attribution.sessionId,
+        orderId: data.id,
+        productId: line.productId,
+        outfitId: attribution.outfitByVariant[line.variantId] ?? null,
+        quantity: line.quantity,
+        value: line.unitPrice * line.quantity,
+      })),
+    ).catch((error) => console.error("[checkout] analytics order_created:", error));
+  }
+
   await sendOrderEmail(supabase, {
     orderId: data.id,
     template: "order_created",
@@ -244,6 +280,7 @@ export async function submitCheckout(supabase: GxkSupabaseClient, input: Checkou
       orderNumber: data.order_number,
       subtotal: Number(data.subtotal),
       shippingCost: Number(data.shipping_cost),
+      discount,
       total,
       amountDueOnline: dueOnline,
       balanceDue: Number(data.balance_due),
