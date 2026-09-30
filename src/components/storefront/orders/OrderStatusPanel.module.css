@@ -1,0 +1,106 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.number {
+  font-size: 1.05rem;
+}
+
+.timeline {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-left: 2px solid #ddd;
+}
+
+.timeline li {
+  padding-left: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  position: relative;
+}
+
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 0.35rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #ccc;
+}
+
+.reached::before {
+  background: #555 !important;
+  border-color: #555 !important;
+}
+
+.current {
+  font-weight: 700;
+}
+
+.current::before {
+  background: #171717 !important;
+  border-color: #171717 !important;
+}
+
+.pending {
+  color: #999;
+}
+
+.timeline time {
+  color: #666;
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.alert {
+  padding: 0.75rem;
+  border: 1px solid #171717;
+}
+
+.note {
+  color: #444;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.details dt {
+  color: #666;
+}
+
+.preLine {
+  white-space: pre-line;
+}
+
+.lines {
+  list-style: none;
+  padding: 0;
+  border-top: 1px solid #e2e2e2;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.total {
+  font-weight: 700;
+}

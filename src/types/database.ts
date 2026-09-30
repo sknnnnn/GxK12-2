@@ -130,6 +130,66 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_methods: {
+        Row: {
+          cost: number | null
+          details: string | null
+          id: string
+          is_enabled: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          cost?: number | null
+          details?: string | null
+          id: string
+          is_enabled?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          cost?: number | null
+          details?: string | null
+          id?: string
+          is_enabled?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          order_id: string | null
+          provider: string
+          recipient: string
+          status: string
+          template: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          order_id?: string | null
+          provider: string
+          recipient: string
+          status: string
+          template: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          order_id?: string | null
+          provider?: string
+          recipient?: string
+          status?: string
+          template?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           id: string
@@ -198,51 +258,96 @@ export type Database = {
           },
         ]
       }
+      order_status_history: {
+        Row: {
+          created_at: string
+          id: number
+          order_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          order_id: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          order_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
+          amount_due_online: number | null
+          balance_due: number
+          cancel_reason: string | null
           created_at: string
           customer_id: string
           id: string
+          incidence_reason: string | null
           lookup_token_expires_at: string | null
           lookup_token_hash: string
+          meeting_point_details: string | null
           order_number: string
           payment_expires_at: string | null
+          payment_method: string
+          payment_plan: string
           shipping_address: Json
           shipping_cost: number
           shipping_method: string
           status: string
+          stock_committed: boolean
           subtotal: number
           total: number
           updated_at: string
         }
         Insert: {
+          amount_due_online?: number | null
+          balance_due?: number
+          cancel_reason?: string | null
           created_at?: string
           customer_id: string
           id?: string
+          incidence_reason?: string | null
           lookup_token_expires_at?: string | null
           lookup_token_hash: string
+          meeting_point_details?: string | null
           order_number: string
           payment_expires_at?: string | null
+          payment_method?: string
+          payment_plan?: string
           shipping_address: Json
           shipping_cost?: number
           shipping_method: string
           status?: string
+          stock_committed?: boolean
           subtotal: number
           total: number
           updated_at?: string
         }
         Update: {
+          amount_due_online?: number | null
+          balance_due?: number
+          cancel_reason?: string | null
           created_at?: string
           customer_id?: string
           id?: string
+          incidence_reason?: string | null
           lookup_token_expires_at?: string | null
           lookup_token_hash?: string
+          meeting_point_details?: string | null
           order_number?: string
           payment_expires_at?: string | null
+          payment_method?: string
+          payment_plan?: string
           shipping_address?: Json
           shipping_cost?: number
           shipping_method?: string
           status?: string
+          stock_committed?: boolean
           subtotal?: number
           total?: number
           updated_at?: string
@@ -348,6 +453,33 @@ export type Database = {
           sort_order?: number
           starts_at?: string | null
           status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_settings: {
+        Row: {
+          cash_enabled: boolean
+          id: boolean
+          max_installments: number | null
+          meeting_point_deposit_enabled: boolean
+          mercado_pago_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          cash_enabled?: boolean
+          id?: boolean
+          max_installments?: number | null
+          meeting_point_deposit_enabled?: boolean
+          mercado_pago_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          cash_enabled?: boolean
+          id?: boolean
+          max_installments?: number | null
+          meeting_point_deposit_enabled?: boolean
+          mercado_pago_enabled?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -778,6 +910,32 @@ export type Database = {
       }
     }
     Functions: {
+      admin_cancel_order: { Args: { p_order_id: string; p_reason: string }; Returns: undefined }
+      admin_register_manual_payment: { Args: { p_amount: number; p_order_id: string }; Returns: string }
+      confirm_order_payment: { Args: { p_order_id: string }; Returns: string }
+      create_order: {
+        Args: {
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_items: Json
+          p_lookup_token_expires_at: string
+          p_lookup_token_hash: string
+          p_meeting_point_details: string | null
+          p_payment_method: string
+          p_payment_plan: string
+          p_shipping_address: Json
+          p_shipping_cost: number
+          p_shipping_method: string
+        }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_order_with_reservation: {
         Args: {
           p_customer_email: string
@@ -842,7 +1000,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      is_active_admin: { Args: never; Returns: boolean }
       release_expired_stock_reservations: { Args: never; Returns: number }
+      restore_order_stock: { Args: { p_order_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

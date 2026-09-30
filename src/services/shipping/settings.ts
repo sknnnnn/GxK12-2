@@ -22,17 +22,16 @@ export function isShippingProviderId(value: unknown): value is ShippingProviderI
   return typeof value === "string" && (SHIPPING_PROVIDER_IDS as readonly string[]).includes(value);
 }
 
+// Datos de despacho de GXK para dar de alta envíos en Andreani / Correo
+// Argentino. Qué modalidades de entrega se ofrecen y a qué costo vive en
+// delivery_methods (./delivery.ts).
 export type ShippingSettings = {
-  activeProvider: ShippingProviderId | null;
-  shippingCost: number | null;
   serviceType: string | null;
   originAddress: ShippingPostalAddress | null;
   originContact: ShippingRecipient | null;
 };
 
 export const EMPTY_SHIPPING_SETTINGS: ShippingSettings = {
-  activeProvider: null,
-  shippingCost: null,
   serviceType: null,
   originAddress: null,
   originContact: null,
@@ -81,7 +80,7 @@ function parseContact(value: unknown): ShippingRecipient | null {
 export async function getShippingSettings(supabase: GxkSupabaseClient): Promise<ShippingSettings> {
   const { data, error } = await supabase
     .from("shipping_settings")
-    .select("active_provider, shipping_cost, service_type, origin_address, origin_contact")
+    .select("service_type, origin_address, origin_contact")
     .eq("id", true)
     .maybeSingle();
 
@@ -89,32 +88,12 @@ export async function getShippingSettings(supabase: GxkSupabaseClient): Promise<
   if (!data) return EMPTY_SHIPPING_SETTINGS;
 
   return {
-    activeProvider: isShippingProviderId(data.active_provider) ? data.active_provider : null,
-    shippingCost: data.shipping_cost === null ? null : Number(data.shipping_cost),
     serviceType: data.service_type?.trim() || null,
     originAddress: parsePostalAddress(data.origin_address),
     originContact: parseContact(data.origin_contact),
   };
 }
 
-export type CheckoutShippingTerms =
-  | { ok: true; provider: ShippingProviderId; cost: number }
-  | { ok: false; missing: Array<"active_provider" | "shipping_cost"> };
-
-/**
- * Proveedor y costo que el checkout usa para el pedido. Siempre derivado de
- * shipping_settings server-side: nada de lo que mande el navegador
- * interviene acá.
- */
-export function resolveCheckoutShipping(settings: ShippingSettings): CheckoutShippingTerms {
-  const missing: Array<"active_provider" | "shipping_cost"> = [];
-  if (!settings.activeProvider) missing.push("active_provider");
-  if (settings.shippingCost === null || !Number.isFinite(settings.shippingCost) || settings.shippingCost < 0) {
-    missing.push("shipping_cost");
-  }
-  if (missing.length > 0 || !settings.activeProvider || settings.shippingCost === null) return { ok: false, missing };
-  return { ok: true, provider: settings.activeProvider, cost: settings.shippingCost };
-}
 
 // ----------------------------------------------------------------------------
 // Edición desde Admin Web
@@ -122,8 +101,6 @@ export function resolveCheckoutShipping(settings: ShippingSettings): CheckoutShi
 
 export type ShippingSettingsFormInput = Partial<
   Record<
-    | "activeProvider"
-    | "shippingCost"
     | "serviceType"
     | "originStreetName"
     | "originStreetNumber"
@@ -141,15 +118,13 @@ export type ShippingSettingsFormInput = Partial<
 
 export type ParseShippingSettingsResult = { ok: true; value: ShippingSettings } | { ok: false; errors: string[] };
 
-const COST_PATTERN = /^\d{1,10}(\.\d{1,2})?$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT_LENGTH = 200;
 
 /**
- * Valida el formulario de configuración. Proveedor y costo son obligatorios
- * (sin ellos el checkout no puede operar); service type y origen son
- * opcionales, pero el domicilio de origen es "todo o nada" -- un domicilio a
- * medias no le sirve a ningún proveedor.
+ * Valida el formulario de datos de despacho. Todo es opcional, pero el
+ * domicilio de origen es "todo o nada" -- un domicilio a medias no le sirve
+ * a ningún proveedor.
  */
 export function parseShippingSettingsInput(input: ShippingSettingsFormInput): ParseShippingSettingsResult {
   const errors: string[] = [];
@@ -157,17 +132,6 @@ export function parseShippingSettingsInput(input: ShippingSettingsFormInput): Pa
 
   for (const [key, value] of Object.entries(input)) {
     if (typeof value === "string" && value.length > MAX_TEXT_LENGTH) errors.push(`El campo ${key} es demasiado largo.`);
-  }
-
-  const provider = text(input.activeProvider);
-  if (!isShippingProviderId(provider)) {
-    errors.push("Elegí un proveedor de envío válido (Andreani o Correo Argentino).");
-  }
-
-  const costText = text(input.shippingCost).replace(",", ".");
-  const cost = COST_PATTERN.test(costText) ? Number(costText) : NaN;
-  if (!Number.isFinite(cost) || cost < 0) {
-    errors.push("El costo de envío debe ser un número mayor o igual a 0, con hasta 2 decimales.");
   }
 
   const serviceType = text(input.serviceType) || null;
@@ -202,12 +166,9 @@ export function parseShippingSettingsInput(input: ShippingSettingsFormInput): Pa
     if (contactFields.email && !EMAIL_PATTERN.test(contactFields.email)) errors.push("El email del remitente no es válido.");
   }
 
-  if (errors.length > 0 || !isShippingProviderId(provider)) return { ok: false, errors };
+  if (errors.length > 0) return { ok: false, errors };
 
-  return {
-    ok: true,
-    value: { activeProvider: provider, shippingCost: cost, serviceType, originAddress, originContact },
-  };
+  return { ok: true, value: { serviceType, originAddress, originContact } };
 }
 
 export type UpdateShippingSettingsResult = { ok: true } | { ok: false; reason: "not_allowed" };
@@ -225,8 +186,6 @@ export async function updateShippingSettings(
   const { data, error } = await supabase
     .from("shipping_settings")
     .update({
-      active_provider: settings.activeProvider,
-      shipping_cost: settings.shippingCost,
       service_type: settings.serviceType,
       origin_address: settings.originAddress,
       origin_contact: settings.originContact,

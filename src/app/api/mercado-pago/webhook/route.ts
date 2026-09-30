@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPayment } from "@/lib/mercadopago/client";
 import { recordPaymentResult, verifyWebhookSignature } from "@/services/payments";
 import { ensureShipmentForPaidOrder } from "@/services/shipping/shipments";
+import { sendOrderEmail, trackingUrlFor } from "@/services/emails";
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 
 // PRO-128: con el pago ya registrado como aprobado, se intenta dar de alta
@@ -12,7 +13,12 @@ import type { GxkSupabaseClient } from "@/lib/supabase/types";
 async function createShipmentAfterPayment(supabase: GxkSupabaseClient, orderId: string) {
   try {
     const shipment = await ensureShipmentForPaidOrder(supabase, orderId);
-    if (!shipment.ok && shipment.reason !== "already_exists" && shipment.reason !== "in_progress") {
+    if (
+      !shipment.ok &&
+      shipment.reason !== "already_exists" &&
+      shipment.reason !== "in_progress" &&
+      shipment.reason !== "not_a_carrier_order"
+    ) {
       console.error(`[mercado-pago webhook] envío no creado para pedido ${orderId}: ${shipment.reason}`);
     }
   } catch (error) {
@@ -71,12 +77,35 @@ export async function POST(request: Request) {
   try {
     const payment = await getPayment(dataId);
     const supabase = createSupabaseAdminClient();
+
+    // Estado previo: permite reaccionar solo a la transición que produjo
+    // ESTE aviso (Mercado Pago reintenta notificaciones).
+    const before = payment.externalReference
+      ? await supabase.from("orders").select("status").eq("order_number", payment.externalReference).maybeSingle()
+      : null;
     const result = await recordPaymentResult(supabase, payment);
 
     if (!result.ok) {
       console.error(`[mercado-pago webhook] recordPaymentResult falló (${result.reason}) para payment ${dataId}`);
     } else if (payment.status === "approved") {
-      await createShipmentAfterPayment(supabase, result.orderId);
+      // record_payment_result confirma el pago y compite por el stock
+      // (primer pago confirmado gana, Bible §17): puede terminar confirmado
+      // o en incidencia por falta de stock.
+      const { data: after } = await supabase.from("orders").select("status, order_number").eq("id", result.orderId).maybeSingle();
+      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+      if (after && after.status !== before?.data?.status) {
+        const trackingUrl = trackingUrlFor(siteUrl, after.order_number);
+        if (after.status === "payment_confirmed") {
+          await createShipmentAfterPayment(supabase, result.orderId);
+          await sendOrderEmail(supabase, { orderId: result.orderId, template: "payment_confirmed", trackingUrl });
+        } else if (after.status === "incidence") {
+          console.error(`[mercado-pago webhook] pago aprobado sin stock para ${after.order_number}: incidencia (stock_conflict).`);
+          await sendOrderEmail(supabase, { orderId: result.orderId, template: "order_status", trackingUrl });
+        }
+      } else if (after?.status === "payment_confirmed") {
+        // Reintento: el alta del envío es idempotente y puede haber quedado pendiente.
+        await createShipmentAfterPayment(supabase, result.orderId);
+      }
     }
   } catch (error) {
     console.error("[mercado-pago webhook] error procesando notificación:", error);

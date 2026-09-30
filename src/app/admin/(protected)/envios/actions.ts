@@ -12,7 +12,9 @@ function describeResult(result: EnsureShipmentResult): string | null {
     case "order_not_paid":
       return "El pedido no tiene el pago confirmado: no se crea el envío.";
     case "provider_not_configured":
-      return "No hay proveedor de envío activo (Configuración).";
+      return "El pedido no tiene un transportista válido.";
+    case "not_a_carrier_order":
+      return "Es un pedido con punto de encuentro: no lleva envío por transportista.";
     case "already_exists":
       return "El pedido ya tiene un envío dado de alta.";
     case "in_progress":

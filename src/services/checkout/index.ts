@@ -1,27 +1,39 @@
-// Checkout: revalidación completa previa a la creación del pedido (precio, stock, variante activa) y reserva de stock.
+// Checkout (Bible §32: máximo 4 pasos — Datos, Entrega, Pago, Confirmación).
+// Compra sin cuenta: el registro en Familia GxK es opcional (Bible §23).
 //
 // Convención de GXK Core (src/services/**): cada función recibe un
-// GxkSupabaseClient (src/lib/supabase/types.ts) ya autenticado como
-// parámetro, en vez de construir su propio cliente o depender de APIs de
-// Next.js. Así la misma función sirve desde Storefront, Admin Web o, más
-// adelante, Desktop — ver ARCHITECTURE.md.
+// GxkSupabaseClient ya construido. La creación real del pedido llama a la
+// función SQL create_order, que solo service_role puede ejecutar: quien
+// invoque submitCheckout debe pasar un cliente createSupabaseAdminClient
+// (server-only, nunca en Desktop ni en el navegador).
 //
-// Excepción deliberada: la creación real del pedido llama a la función SQL
-// create_order_with_reservation (supabase/migrations/...), que solo
-// service_role puede ejecutar. Quien invoque este servicio con fines de
-// checkout real debe pasar un cliente construido con
-// createSupabaseAdminClient (server-only, nunca en Desktop ni en el
-// navegador) — no un cliente de sesión de usuario.
+// Stock (Bible §17): el carrito NO reserva y crear el pedido tampoco. Acá
+// solo se verifica que lo pedido esté disponible hoy; el stock se descuenta
+// cuando se confirma el primer pago (confirm_order_payment, ver migración
+// block3_checkout_orders).
 
 import { createHash, randomBytes } from "node:crypto";
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import { revalidateCartItems, type CartItemInput, type CartValidationIssue, type ValidatedCartLine } from "@/services/cart";
-import { createOrderPayment } from "@/services/payments";
-import { getShippingSettings, resolveCheckoutShipping } from "@/services/shipping";
+import {
+  amountDueOnline,
+  createOrderPayment,
+  getPaymentSettings,
+  isPaymentOptionId,
+  paymentOptionsFor,
+  type PaymentOptionId,
+} from "@/services/payments";
+import {
+  availableDeliveryMethods,
+  getDeliveryMethods,
+  isCarrier,
+  isDeliveryMethodId,
+  type DeliveryMethodId,
+} from "@/services/shipping/delivery";
+import { sendOrderEmail, trackingUrlFor } from "@/services/emails";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-// Sin cuenta obligatoria (guest checkout): solo lo mínimo para poder
-// contactar al comprador y despachar el pedido.
+// Paso 1 — Datos.
 export type CheckoutCustomerInput = {
   firstName: string;
   lastName: string;
@@ -29,8 +41,13 @@ export type CheckoutCustomerInput = {
   phone: string;
 };
 
-export type CheckoutShippingInput = {
-  address: string;
+// Paso 2 — Entrega. El domicilio usa la misma forma que exigen los
+// transportistas para el alta del envío (ShippingPostalAddress).
+export type CheckoutAddressInput = {
+  streetName: string;
+  streetNumber: string;
+  floor: string;
+  apartment: string;
   locality: string;
   province: string;
   postalCode: string;
@@ -39,39 +56,33 @@ export type CheckoutShippingInput = {
 export type CheckoutInput = {
   items: CartItemInput[];
   customer: CheckoutCustomerInput;
-  shipping: CheckoutShippingInput;
-  /** NEXT_PUBLIC_SITE_URL sin barra final -- para armar las URLs de Mercado Pago. */
+  deliveryMethod: string;
+  /** Obligatorio solo para Andreani / Correo Argentino. */
+  address: CheckoutAddressInput | null;
+  // Paso 3 — Pago.
+  paymentOption: string;
+  /** NEXT_PUBLIC_SITE_URL sin barra final -- para armar las URLs de Mercado Pago y de seguimiento. */
   siteUrl: string;
 };
 
-export type CheckoutFieldName = keyof CheckoutCustomerInput | keyof CheckoutShippingInput;
+export type CheckoutFieldName = keyof CheckoutCustomerInput | keyof CheckoutAddressInput;
 
 export type CheckoutIssue =
   | CartValidationIssue
   | { type: "missing_field"; field: CheckoutFieldName }
   | { type: "invalid_email" }
-  // Carrera entre la revalidación previa y la reserva atómica en SQL: el
-  // stock cambió justo en el medio (otro comprador se adelantó). No es un
-  // error del pedido en sí, hay que reintentar con el carrito actualizado.
+  | { type: "delivery_unavailable" }
+  | { type: "payment_unavailable" }
+  // El stock cambió entre la revalidación y la creación del pedido.
   | { type: "stock_changed" }
   | { type: "order_creation_failed"; message: string }
-  // GXK todavía no configuró proveedor activo y/o costo de envío (Admin >
-  // Configuración): no se crea el pedido en vez de cobrar un envío inventado.
-  | { type: "shipping_unavailable" }
-  // Payload con una forma inesperada (ver src/app/(storefront)/checkout/actions.ts):
-  // el Server Action es un POST alcanzable directamente, no solo desde la UI.
   | { type: "malformed_request" };
 
-// Estado del intento de iniciar el pago -- distinto de CheckoutResult.ok:
-// el pedido y la reserva de stock ya existen en ambos casos (ver
-// submitCheckout), esto solo indica si se pudo generar el link de Mercado
-// Pago para pagarlo ahora mismo.
 export type CheckoutPaymentStatus =
   | { status: "redirect"; initPoint: string }
-  // "not_configured": MERCADO_PAGO_ACCESS_TOKEN vacío en .env.local -- ver
-  // services/payments. Esperado hasta que el dueño de GXK cargue sus
-  // credenciales; el storefront debe mostrarlo como "pago pendiente de
-  // habilitar", nunca como un error del pedido.
+  // Efectivo en la entrega: no hay pago online, el admin lo registra.
+  | { status: "cash" }
+  // Mercado Pago sin credenciales o con error: el pedido existe igual.
   | { status: "unavailable"; reason: "not_configured" | "provider_error" };
 
 export type CheckoutOrderSummary = {
@@ -79,14 +90,10 @@ export type CheckoutOrderSummary = {
   subtotal: number;
   shippingCost: number;
   total: number;
+  amountDueOnline: number;
+  balanceDue: number;
   lines: ValidatedCartLine[];
-  /**
-   * Token en claro de consulta pública del pedido (nunca el hash) -- se usa
-   * para armar el link de retorno desde Mercado Pago y la propia pantalla
-   * de estado (ver services/orders.getOrderByLookupToken). No se persiste
-   * en ningún lado más que en el propio link: solo lo tiene quien acaba de
-   * pagar.
-   */
+  /** Token en claro de consulta del pedido (solo lo tiene quien compró). */
   lookupToken: string;
   payment: CheckoutPaymentStatus;
 };
@@ -95,146 +102,162 @@ export type CheckoutResult = { ok: true; order: CheckoutOrderSummary } | { ok: f
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Duración de validez del token de consulta pública del pedido (no
-// implementado todavía -- ver comentario de src/services/orders/index.ts).
-// 30 días es un valor conservador solo para satisfacer la columna NOT NULL
-// de orders; no hay UX construida sobre este valor en esta etapa.
+// Validez del link de consulta del pedido (valor ya vigente en el sistema).
 const LOOKUP_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Costo y método de envío (PRO-128): salen SIEMPRE de shipping_settings
-// (services/shipping/settings.ts), leídos acá server-side -- el navegador
-// no manda ni puede influir en ninguno de los dos. orders.shipping_method
-// guarda el proveedor activo al momento de la compra (informativo: el envío
-// real se da de alta con el proveedor activo al confirmarse el pago, ver
-// services/shipping/shipments.ts).
+const REQUIRED_ADDRESS_FIELDS: Array<keyof CheckoutAddressInput> = [
+  "streetName",
+  "streetNumber",
+  "locality",
+  "province",
+  "postalCode",
+];
 
-function validateBuyerInput(customer: CheckoutCustomerInput, shipping: CheckoutShippingInput): CheckoutIssue[] {
+export function validateCustomer(customer: CheckoutCustomerInput): CheckoutIssue[] {
   const issues: CheckoutIssue[] = [];
-
-  const requiredCustomerFields: Array<keyof CheckoutCustomerInput> = ["firstName", "lastName", "email", "phone"];
-  for (const field of requiredCustomerFields) {
+  for (const field of ["firstName", "lastName", "email", "phone"] as const) {
     if (!customer[field]?.trim()) issues.push({ type: "missing_field", field });
   }
-  if (customer.email?.trim() && !EMAIL_PATTERN.test(customer.email.trim())) {
-    issues.push({ type: "invalid_email" });
-  }
-
-  const requiredShippingFields: Array<keyof CheckoutShippingInput> = ["address", "locality", "province", "postalCode"];
-  for (const field of requiredShippingFields) {
-    if (!shipping[field]?.trim()) issues.push({ type: "missing_field", field });
-  }
-
+  if (customer.email?.trim() && !EMAIL_PATTERN.test(customer.email.trim())) issues.push({ type: "invalid_email" });
   return issues;
 }
 
-// create_order_with_reservation señaliza sus fallos con RAISE EXCEPTION de
-// mensaje fijo (ver migración inicial). Si esto se dispara es porque la
-// revalidación previa (revalidateCartItems) ya no refleja el estado real --
-// una carrera con otro comprador entre la revalidación y esta llamada.
+export function validateAddress(address: CheckoutAddressInput | null): CheckoutIssue[] {
+  return REQUIRED_ADDRESS_FIELDS.filter((field) => !address?.[field]?.trim()).map((field) => ({
+    type: "missing_field" as const,
+    field,
+  }));
+}
+
 function mapRpcError(error: PostgrestError): CheckoutIssue {
   const message = error.message ?? "";
   if (message.startsWith("empty_order")) return { type: "empty_cart" };
-  if (
-    message.startsWith("insufficient_stock") ||
-    message.startsWith("variant_not_found") ||
-    message.startsWith("variant_inactive")
-  ) {
+  if (message.startsWith("insufficient_stock") || message.startsWith("variant_not_found") || message.startsWith("variant_inactive")) {
     return { type: "stock_changed" };
   }
   return { type: "order_creation_failed", message };
 }
 
+/** Opciones del checkout leídas server-side (pasos Entrega y Pago). */
+export async function getCheckoutOptions(supabase: GxkSupabaseClient) {
+  const [methods, paymentSettings] = await Promise.all([getDeliveryMethods(supabase), getPaymentSettings(supabase)]);
+  const delivery = availableDeliveryMethods(methods);
+  return {
+    delivery,
+    paymentOptionsByDelivery: Object.fromEntries(
+      delivery.map((method) => [method.id, paymentOptionsFor(paymentSettings, method.id)]),
+    ) as Record<DeliveryMethodId, ReturnType<typeof paymentOptionsFor>>,
+  };
+}
+
 /**
- * Checkout completo: revalida el carrito contra Supabase (nunca confía en
- * precio/nombre/stock del navegador), y si todo es válido crea el pedido +
- * reserva de stock invocando create_order_with_reservation. Atómico por
- * construcción: create_order_with_reservation no deja pedidos ni descuentos
- * de stock parciales ante ningún fallo (ver migración inicial).
- *
- * `supabase` debe ser un cliente admin (createSupabaseAdminClient):
- * create_order_with_reservation solo la puede ejecutar service_role.
+ * Checkout completo: valida datos, entrega y pago contra la configuración
+ * real (nada de costo/modalidad/medio viene decidido por el navegador),
+ * revalida el carrito contra Supabase y crea el pedido con create_order.
+ * Si corresponde, genera el pago de Mercado Pago por el monto de hoy.
  */
 export async function submitCheckout(supabase: GxkSupabaseClient, input: CheckoutInput): Promise<CheckoutResult> {
-  const buyerIssues = validateBuyerInput(input.customer, input.shipping);
-  if (buyerIssues.length > 0) {
-    return { ok: false, issues: buyerIssues };
+  const issues = validateCustomer(input.customer);
+
+  if (!isDeliveryMethodId(input.deliveryMethod)) {
+    return { ok: false, issues: [...issues, { type: "delivery_unavailable" }] };
   }
+  const deliveryId = input.deliveryMethod;
+  if (isCarrier(deliveryId)) issues.push(...validateAddress(input.address));
+  if (issues.length > 0) return { ok: false, issues };
+
+  const [methods, paymentSettings] = await Promise.all([getDeliveryMethods(supabase), getPaymentSettings(supabase)]);
+  const delivery = availableDeliveryMethods(methods).find((method) => method.id === deliveryId);
+  if (!delivery) return { ok: false, issues: [{ type: "delivery_unavailable" }] };
+
+  const option = isPaymentOptionId(input.paymentOption)
+    ? paymentOptionsFor(paymentSettings, deliveryId).find((candidate) => candidate.id === (input.paymentOption as PaymentOptionId))
+    : undefined;
+  if (!option) return { ok: false, issues: [{ type: "payment_unavailable" }] };
 
   const validation = await revalidateCartItems(supabase, input.items);
-  if (!validation.ok) {
-    return { ok: false, issues: validation.issues };
-  }
-
-  const shippingTerms = resolveCheckoutShipping(await getShippingSettings(supabase));
-  if (!shippingTerms.ok) {
-    console.error(`[checkout] envíos sin configurar (falta: ${shippingTerms.missing.join(", ")}); pedido rechazado.`);
-    return { ok: false, issues: [{ type: "shipping_unavailable" }] };
-  }
+  if (!validation.ok) return { ok: false, issues: validation.issues };
 
   const lookupToken = randomBytes(32).toString("hex");
   const lookupTokenHash = createHash("sha256").update(lookupToken).digest("hex");
   const lookupTokenExpiresAt = new Date(Date.now() + LOOKUP_TOKEN_TTL_MS).toISOString();
 
-  const { data, error } = await supabase.rpc("create_order_with_reservation", {
+  const address = isCarrier(deliveryId) && input.address ? trimAddress(input.address) : {};
+
+  const { data, error } = await supabase.rpc("create_order", {
     p_customer_name: `${input.customer.firstName.trim()} ${input.customer.lastName.trim()}`.trim(),
     p_customer_email: input.customer.email.trim().toLowerCase(),
     p_customer_phone: input.customer.phone.trim(),
     p_items: validation.lines.map((line) => ({ variant_id: line.variantId, quantity: line.quantity })),
-    p_shipping_method: shippingTerms.provider,
-    p_shipping_address: {
-      address: input.shipping.address.trim(),
-      locality: input.shipping.locality.trim(),
-      province: input.shipping.province.trim(),
-      postalCode: input.shipping.postalCode.trim(),
-    },
-    p_shipping_cost: shippingTerms.cost,
+    p_shipping_method: deliveryId,
+    p_shipping_address: address,
+    p_shipping_cost: delivery.cost,
+    p_payment_method: option.paymentMethod,
+    p_payment_plan: option.paymentPlan,
+    p_meeting_point_details: deliveryId === "meeting_point" ? delivery.details : null,
     p_lookup_token_hash: lookupTokenHash,
     p_lookup_token_expires_at: lookupTokenExpiresAt,
   });
 
-  if (error) {
-    return { ok: false, issues: [mapRpcError(error)] };
+  if (error) return { ok: false, issues: [mapRpcError(error)] };
+
+  const total = Number(data.total);
+  const dueOnline = data.amount_due_online === null ? amountDueOnline(total, option) : Number(data.amount_due_online);
+
+  let payment: CheckoutPaymentStatus = { status: "cash" };
+  if (option.paymentMethod === "mercado_pago") {
+    const items =
+      option.paymentPlan === "deposit"
+        ? [{ title: `Reserva 50% — pedido ${data.order_number}`, quantity: 1, unitPrice: dueOnline }]
+        : [
+            ...validation.lines.map((line) => ({
+              title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+            })),
+            ...(Number(data.shipping_cost) > 0 ? [{ title: "Envío", quantity: 1, unitPrice: Number(data.shipping_cost) }] : []),
+          ];
+    const paymentResult = await createOrderPayment({
+      orderNumber: data.order_number,
+      items,
+      siteUrl: input.siteUrl,
+      lookupToken,
+      maxInstallments: paymentSettings.maxInstallments,
+    });
+    if (!paymentResult.ok && paymentResult.reason === "provider_error") {
+      console.error(`[checkout] Mercado Pago createPreference falló para ${data.order_number}:`, paymentResult.message);
+    }
+    payment = paymentResult.ok
+      ? { status: "redirect", initPoint: paymentResult.initPoint }
+      : { status: "unavailable", reason: paymentResult.reason };
   }
 
-  // El pedido y la reserva de stock ya se crearon (arriba) -- un problema
-  // acá (credenciales de Mercado Pago sin configurar, o un error de su API)
-  // no debe deshacer eso ni reportarse como si el pedido hubiera fallado:
-  // se refleja únicamente en `payment`, ver CheckoutPaymentStatus.
-  const paymentResult = await createOrderPayment({
-    orderNumber: data.order_number,
-    items: [
-      ...validation.lines.map((line) => ({
-        title: [line.productName, line.variantLabel].filter(Boolean).join(" — "),
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-      })),
-      // El monto a pagar tiene que coincidir con orders.total (subtotal +
-      // envío): el envío va como un ítem más de la preference.
-      ...(data.shipping_cost > 0 ? [{ title: "Envío", quantity: 1, unitPrice: data.shipping_cost }] : []),
-    ],
-    siteUrl: input.siteUrl,
-    lookupToken,
+  await sendOrderEmail(supabase, {
+    orderId: data.id,
+    template: "order_created",
+    trackingUrl: trackingUrlFor(input.siteUrl, data.order_number),
   });
-
-  if (!paymentResult.ok && paymentResult.reason === "provider_error") {
-    // No se propaga el mensaje crudo de la API al cliente (services/payments
-    // ya lo deja server-side): esto es solo para poder diagnosticarlo desde
-    // los logs del servidor sin exponer detalles internos al comprador.
-    console.error(`[checkout] Mercado Pago createPreference falló para ${data.order_number}:`, paymentResult.message);
-  }
 
   return {
     ok: true,
     order: {
       orderNumber: data.order_number,
-      subtotal: data.subtotal,
-      shippingCost: data.shipping_cost,
-      total: data.total,
+      subtotal: Number(data.subtotal),
+      shippingCost: Number(data.shipping_cost),
+      total,
+      amountDueOnline: dueOnline,
+      balanceDue: Number(data.balance_due),
       lines: validation.lines,
       lookupToken,
-      payment: paymentResult.ok
-        ? { status: "redirect", initPoint: paymentResult.initPoint }
-        : { status: "unavailable", reason: paymentResult.reason },
+      payment,
     },
   };
+}
+
+function trimAddress(address: CheckoutAddressInput): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(address)) {
+    if (typeof value === "string" && value.trim()) result[key] = value.trim();
+  }
+  return result;
 }

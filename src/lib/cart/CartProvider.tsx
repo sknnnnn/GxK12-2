@@ -3,61 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import type { CartLine, CartState } from "./types";
 import { loadCart, saveCart } from "./storage";
-
-type CartAction =
-  | { type: "HYDRATE"; lines: CartLine[] }
-  | { type: "ADD"; line: Omit<CartLine, "quantity">; quantity: number }
-  | { type: "INCREMENT"; variantId: string }
-  | { type: "DECREMENT"; variantId: string }
-  | { type: "REMOVE"; variantId: string }
-  | { type: "CLEAR" };
-
-function cartReducer(state: CartState, action: CartAction): CartState {
-  switch (action.type) {
-    case "HYDRATE":
-      return { lines: action.lines };
-
-    case "ADD": {
-      // Cantidad siempre entera y > 0 -- nunca se permite agregar 0 o negativo.
-      const quantity = Math.max(1, Math.floor(action.quantity));
-      const existingIndex = state.lines.findIndex((line) => line.variantId === action.line.variantId);
-      if (existingIndex === -1) {
-        return { lines: [...state.lines, { ...action.line, quantity }] };
-      }
-      // Ya está en el carrito: suma cantidad a la línea existente en vez de duplicarla.
-      return {
-        lines: state.lines.map((line, index) =>
-          index === existingIndex ? { ...line, quantity: line.quantity + quantity } : line,
-        ),
-      };
-    }
-
-    case "INCREMENT":
-      return {
-        lines: state.lines.map((line) =>
-          line.variantId === action.variantId ? { ...line, quantity: line.quantity + 1 } : line,
-        ),
-      };
-
-    case "DECREMENT":
-      // Decrementar por debajo de 1 elimina la línea -- nunca queda una
-      // cantidad <= 0 persistida.
-      return {
-        lines: state.lines
-          .map((line) => (line.variantId === action.variantId ? { ...line, quantity: line.quantity - 1 } : line))
-          .filter((line) => line.quantity > 0),
-      };
-
-    case "REMOVE":
-      return { lines: state.lines.filter((line) => line.variantId !== action.variantId) };
-
-    case "CLEAR":
-      return { lines: [] };
-
-    default:
-      return state;
-  }
-}
+import { cartReducer, type CartAction } from "./reducer";
 
 // `hydrated`: ya se leyó localStorage (ver CartProvider). Vive en el mismo
 // reducer para que la carga y la marca de "hidratado" sean un único dispatch.
@@ -68,12 +14,15 @@ function hydratingCartReducer(state: CartState & { hydrated: boolean }, action: 
 
 type CartContextValue = {
   lines: CartLine[];
+  /** true una vez leído localStorage: antes de eso el carrito vacío no es real. */
+  hydrated: boolean;
   itemCount: number;
   subtotal: number;
   addItem: (line: Omit<CartLine, "quantity">, quantity?: number) => void;
   increment: (variantId: string) => void;
   decrement: (variantId: string) => void;
   remove: (variantId: string) => void;
+  replaceVariant: (fromVariantId: string, line: Omit<CartLine, "quantity">) => void;
   clear: () => void;
 };
 
@@ -108,15 +57,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const subtotal = state.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
     return {
       lines: state.lines,
+      hydrated: state.hydrated,
       itemCount,
       subtotal,
       addItem: (line, quantity = 1) => dispatch({ type: "ADD", line, quantity }),
       increment: (variantId) => dispatch({ type: "INCREMENT", variantId }),
       decrement: (variantId) => dispatch({ type: "DECREMENT", variantId }),
       remove: (variantId) => dispatch({ type: "REMOVE", variantId }),
+      replaceVariant: (fromVariantId, line) => dispatch({ type: "REPLACE_VARIANT", fromVariantId, line }),
       clear: () => dispatch({ type: "CLEAR" }),
     };
-  }, [state.lines]);
+  }, [state.lines, state.hydrated]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

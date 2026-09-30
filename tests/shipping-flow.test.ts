@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createFakeSupabase } from "./support/fakeSupabase";
 import {
+  availableDeliveryMethods,
+  getDeliveryMethods,
   getShippingProvider,
   getShippingSettings,
+  parseDeliveryMethodInput,
   parseShippingSettingsInput,
-  resolveCheckoutShipping,
   updateShippingSettings,
 } from "@/services/shipping";
 import { ensureShipmentForPaidOrder } from "@/services/shipping/shipments";
@@ -25,8 +27,6 @@ const ORIGIN_ADDRESS = { streetName: "Depósito", streetNumber: "100", locality:
 function settingsRow(overrides: Record<string, unknown> = {}) {
   return {
     id: true,
-    active_provider: "correo_argentino",
-    shipping_cost: 4500,
     service_type: "CP",
     origin_address: ORIGIN_ADDRESS,
     origin_contact: { name: "GXK", email: "envios@gxk.test", phone: "1100000000" },
@@ -34,7 +34,9 @@ function settingsRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function baseTables(overrides: { orderStatus?: string; items?: Record<string, unknown>[]; settings?: Record<string, unknown> } = {}) {
+function baseTables(
+  overrides: { orderStatus?: string; shippingMethod?: string; items?: Record<string, unknown>[]; settings?: Record<string, unknown> } = {},
+) {
   return {
     shipping_settings: [settingsRow(overrides.settings)],
     orders: [
@@ -42,6 +44,7 @@ function baseTables(overrides: { orderStatus?: string; items?: Record<string, un
         id: "order-1",
         order_number: "GXK-0001",
         status: overrides.orderStatus ?? "payment_confirmed",
+        shipping_method: overrides.shippingMethod ?? "correo_argentino",
         customer_id: "cust-1",
         shipping_address: { streetName: "Av. Siempre Viva", streetNumber: "742", locality: "Springfield", province: "B", postalCode: "1234" },
       },
@@ -112,19 +115,27 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Configuración: proveedor activo y costo
+// Configuración: modalidades de entrega y datos de despacho
 // ---------------------------------------------------------------------------
 
-describe("configuración de envíos", () => {
-  it("1. el proveedor activo sale de shipping_settings", async () => {
-    const fake = createFakeSupabase(baseTables());
-    const settings = await getShippingSettings(fake.client);
-    assert.equal(settings.activeProvider, "correo_argentino");
+function deliveryRows(overrides: Record<string, Record<string, unknown>> = {}) {
+  return [
+    { id: "andreani", is_enabled: false, cost: null, details: null, sort_order: 1, ...overrides.andreani },
+    { id: "correo_argentino", is_enabled: true, cost: 4500, details: null, sort_order: 2, ...overrides.correo_argentino },
+    { id: "meeting_point", is_enabled: false, cost: null, details: null, sort_order: 3, ...overrides.meeting_point },
+  ];
+}
+
+describe("configuración de entregas", () => {
+  it("1. las modalidades y sus costos salen de delivery_methods; solo se ofrecen las habilitadas con costo", async () => {
+    const fake = createFakeSupabase({ delivery_methods: deliveryRows({ meeting_point: { is_enabled: true, cost: null } }) });
+    const available = availableDeliveryMethods(await getDeliveryMethods(fake.client));
+    assert.deepEqual(available.map((m) => [m.id, m.cost]), [["correo_argentino", 4500]]);
     assert.equal(getShippingProvider("correo_argentino").id, "correo_argentino");
     assert.equal(getShippingProvider("andreani").id, "andreani");
   });
 
-  it("2. cambiar el proveedor activo cambia el proveedor usado para el alta, sin tocar código", async () => {
+  it("2. el alta usa el transportista que eligió el comprador, no una configuración global", async () => {
     const correo = fakeProvider("correo_argentino");
     const andreani = fakeProvider("andreani");
     const resolveProvider = providerRegistry({ correo_argentino: correo, andreani });
@@ -134,10 +145,41 @@ describe("configuración de envíos", () => {
     assert.equal(correo.calls.length, 1);
     assert.equal(fakeA.tables.shipments[0].provider, "correo_argentino");
 
-    const fakeB = createFakeSupabase(baseTables());
+    const tablesB = baseTables();
+    tablesB.orders[0].shipping_method = "andreani";
+    const fakeB = createFakeSupabase(tablesB);
+    await ensureShipmentForPaidOrder(fakeB.client, "order-1", { resolveProvider });
+    assert.equal(andreani.calls.length, 1);
+    assert.equal(fakeB.tables.shipments[0].provider, "andreani");
+  });
+
+  it("3. un pedido con punto de encuentro no genera envío por transportista", async () => {
+    const tables = baseTables();
+    tables.orders[0].shipping_method = "meeting_point";
+    const fake = createFakeSupabase(tables);
+    const result = await ensureShipmentForPaidOrder(fake.client, "order-1", { resolveProvider: providerRegistry({}) });
+    assert.deepEqual(result, { ok: false, reason: "not_a_carrier_order" });
+    assert.equal(fake.tables.shipments.length, 0);
+  });
+
+  it("11. configuración inválida rechazada", () => {
+    for (const input of [{ originStreetName: "Calle sin número" }, { originContactEmail: "no-es-un-email" }]) {
+      assert.equal(parseShippingSettingsInput(input).ok, false, `debería rechazar ${JSON.stringify(input)}`);
+    }
+    const valid = parseShippingSettingsInput({ serviceType: "CP" });
+    assert.ok(valid.ok);
+    assert.equal(valid.value.originAddress, null);
+
+    assert.equal(parseDeliveryMethodInput({ isEnabled: true, cost: "", details: "" }).ok, false);
+    assert.equal(parseDeliveryMethodInput({ isEnabled: false, cost: "-5", details: "" }).ok, false);
+    assert.equal(parseDeliveryMethodInput({ isEnabled: false, cost: "10.123", details: "" }).ok, false);
+    const cost = parseDeliveryMethodInput({ isEnabled: true, cost: "4500,50", details: " Plaza " });
+    assert.deepEqual(cost, { ok: true, value: { isEnabled: true, cost: 4500.5, details: "Plaza" } });
+  });
+
+  it("11b. guardar datos de despacho", async () => {
+    const fake = createFakeSupabase(baseTables());
     const parsed = parseShippingSettingsInput({
-      activeProvider: "andreani",
-      shippingCost: "4500",
       originStreetName: "Depósito",
       originStreetNumber: "100",
       originLocality: "CABA",
@@ -146,54 +188,13 @@ describe("configuración de envíos", () => {
       originContactName: "GXK",
     });
     assert.ok(parsed.ok);
-    assert.deepEqual(await updateShippingSettings(fakeB.client, parsed.value), { ok: true });
-    await ensureShipmentForPaidOrder(fakeB.client, "order-1", { resolveProvider });
-    assert.equal(andreani.calls.length, 1);
-    assert.equal(fakeB.tables.shipments[0].provider, "andreani");
-  });
-
-  it("3. el costo de envío es el configurado", async () => {
-    const fake = createFakeSupabase(baseTables({ settings: { shipping_cost: 3999.5 } }));
-    const terms = resolveCheckoutShipping(await getShippingSettings(fake.client));
-    assert.deepEqual(terms, { ok: true, provider: "correo_argentino", cost: 3999.5 });
-  });
-
-  it("3b. sin proveedor o costo configurado, el checkout no tiene términos de envío", async () => {
-    const fake = createFakeSupabase(baseTables({ settings: { active_provider: null, shipping_cost: null } }));
-    const terms = resolveCheckoutShipping(await getShippingSettings(fake.client));
-    assert.deepEqual(terms, { ok: false, missing: ["active_provider", "shipping_cost"] });
-  });
-
-  it("11. configuración inválida rechazada", () => {
-    const cases = [
-      { activeProvider: "oca", shippingCost: "100" },
-      { activeProvider: "", shippingCost: "100" },
-      { activeProvider: "andreani", shippingCost: "-5" },
-      { activeProvider: "andreani", shippingCost: "abc" },
-      { activeProvider: "andreani", shippingCost: "10.123" },
-      { activeProvider: "andreani", shippingCost: "" },
-      { activeProvider: "andreani", shippingCost: "100", originStreetName: "Calle sin número" },
-      { activeProvider: "andreani", shippingCost: "100", originContactEmail: "no-es-un-email" },
-    ];
-    for (const input of cases) {
-      const result = parseShippingSettingsInput(input);
-      assert.equal(result.ok, false, `debería rechazar ${JSON.stringify(input)}`);
-    }
-
-    const valid = parseShippingSettingsInput({ activeProvider: "correo_argentino", shippingCost: "4500,50" });
-    assert.ok(valid.ok);
-    assert.equal(valid.value.shippingCost, 4500.5);
-    assert.equal(valid.value.originAddress, null);
-  });
-
-  it("11b. un valor inválido guardado en la base no se usa como proveedor", async () => {
-    const fake = createFakeSupabase(baseTables({ settings: { active_provider: "oca" } }));
-    assert.equal((await getShippingSettings(fake.client)).activeProvider, null);
+    assert.deepEqual(await updateShippingSettings(fake.client, parsed.value), { ok: true });
+    assert.equal((await getShippingSettings(fake.client)).originAddress?.streetName, "Depósito");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Checkout: costo/proveedor determinados server-side
+// Checkout: entrega y pago determinados server-side
 // ---------------------------------------------------------------------------
 
 describe("checkout", () => {
@@ -205,9 +206,12 @@ describe("checkout", () => {
     if (savedMpToken !== undefined) process.env.MERCADO_PAGO_ACCESS_TOKEN = savedMpToken;
   });
 
-  function checkoutTables(settings: Record<string, unknown> = {}) {
+  function checkoutTables(delivery: Record<string, Record<string, unknown>> = {}, payment: Record<string, unknown> = {}) {
     return {
-      shipping_settings: [settingsRow(settings)],
+      delivery_methods: deliveryRows(delivery),
+      payment_settings: [
+        { id: true, mercado_pago_enabled: true, max_installments: null, cash_enabled: false, meeting_point_deposit_enabled: true, ...payment },
+      ],
       product_variants: [
         {
           id: "var-1",
@@ -221,46 +225,110 @@ describe("checkout", () => {
           colors: null,
         },
       ],
+      orders: [] as Record<string, unknown>[],
+      email_log: [] as Record<string, unknown>[],
     };
   }
 
   function rpcCreateOrder(fn: string, args: Record<string, unknown>) {
-    assert.equal(fn, "create_order_with_reservation");
+    assert.equal(fn, "create_order");
     const cost = args.p_shipping_cost as number;
-    return { data: { order_number: "GXK-0002", subtotal: 10000, shipping_cost: cost, total: 10000 + cost }, error: null };
+    const total = 10000 + cost;
+    const due = args.p_payment_method === "cash" ? 0 : args.p_payment_plan === "deposit" ? total / 2 : total;
+    return {
+      data: {
+        id: "order-new",
+        order_number: "GXK-0002",
+        subtotal: 10000,
+        shipping_cost: cost,
+        total,
+        amount_due_online: due,
+        balance_due: total - due,
+      },
+      error: null,
+    };
   }
 
+  const address = {
+    streetName: "Av. Siempre Viva",
+    streetNumber: "742",
+    floor: "",
+    apartment: "",
+    locality: "Springfield",
+    province: "B",
+    postalCode: "1234",
+  };
   const baseInput = {
     items: [{ variantId: "var-1", quantity: 1 }],
     customer: { firstName: "Ana", lastName: "Pérez", email: "ana@example.test", phone: "1155555555" },
-    shipping: { address: "Av. Siempre Viva 742", locality: "Springfield", province: "B", postalCode: "1234" },
+    deliveryMethod: "correo_argentino",
+    address,
+    paymentOption: "mp_full",
     siteUrl: "http://localhost:3000",
   };
 
-  it("13. el navegador no puede manipular proveedor ni costo final", async () => {
+  it("13. el navegador no puede manipular modalidad ni costo final", async () => {
     const fake = createFakeSupabase(checkoutTables(), { rpc: rpcCreateOrder });
-    const tampered = {
-      ...baseInput,
-      shippingCost: 0,
-      provider: "andreani",
-      shipping: { ...baseInput.shipping, shippingCost: 0, provider: "andreani" },
-    } as unknown as Parameters<typeof submitCheckout>[1];
+    const tampered = { ...baseInput, shippingCost: 0, cost: 0 } as unknown as Parameters<typeof submitCheckout>[1];
 
     const result = await submitCheckout(fake.client, tampered);
 
     assert.equal(fake.rpcCalls.length, 1);
     assert.equal(fake.rpcCalls[0].args.p_shipping_cost, 4500);
     assert.equal(fake.rpcCalls[0].args.p_shipping_method, "correo_argentino");
+    assert.deepEqual(fake.rpcCalls[0].args.p_shipping_address, {
+      streetName: "Av. Siempre Viva",
+      streetNumber: "742",
+      locality: "Springfield",
+      province: "B",
+      postalCode: "1234",
+    });
     assert.ok(result.ok);
     assert.equal(result.order.shippingCost, 4500);
     assert.equal(result.order.total, 14500);
+    assert.deepEqual(result.order.payment, { status: "unavailable", reason: "not_configured" });
   });
 
-  it("3c. sin configuración de envíos el checkout no crea el pedido ni reserva stock", async () => {
-    const fake = createFakeSupabase(checkoutTables({ active_provider: null }), { rpc: rpcCreateOrder });
+  it("3c. una modalidad deshabilitada o sin costo no crea el pedido", async () => {
+    const fake = createFakeSupabase(checkoutTables({ correo_argentino: { is_enabled: false } }), { rpc: rpcCreateOrder });
     const result = await submitCheckout(fake.client, baseInput);
-    assert.deepEqual(result, { ok: false, issues: [{ type: "shipping_unavailable" }] });
+    assert.deepEqual(result, { ok: false, issues: [{ type: "delivery_unavailable" }] });
     assert.equal(fake.rpcCalls.length, 0);
+  });
+
+  it("3d. envío por transportista exige domicilio completo", async () => {
+    const fake = createFakeSupabase(checkoutTables(), { rpc: rpcCreateOrder });
+    const result = await submitCheckout(fake.client, { ...baseInput, address: { ...address, streetNumber: " " } });
+    assert.deepEqual(result, { ok: false, issues: [{ type: "missing_field", field: "streetNumber" }] });
+  });
+
+  it("3e. seña 50% y efectivo solo con punto de encuentro y si están habilitados (Bible §19)", async () => {
+    const meeting = { meeting_point: { is_enabled: true, cost: 0, details: "Plaza" } };
+    const fakeShip = createFakeSupabase(checkoutTables(meeting), { rpc: rpcCreateOrder });
+    const deposit = await submitCheckout(fakeShip.client, { ...baseInput, paymentOption: "mp_deposit" });
+    assert.deepEqual(deposit, { ok: false, issues: [{ type: "payment_unavailable" }] });
+
+    const fakeMeet = createFakeSupabase(checkoutTables(meeting), { rpc: rpcCreateOrder });
+    const ok = await submitCheckout(fakeMeet.client, { ...baseInput, deliveryMethod: "meeting_point", address: null, paymentOption: "mp_deposit" });
+    assert.ok(ok.ok);
+    assert.equal(fakeMeet.rpcCalls[0].args.p_payment_plan, "deposit");
+    assert.equal(fakeMeet.rpcCalls[0].args.p_meeting_point_details, "Plaza");
+    assert.equal(ok.order.amountDueOnline, 5000);
+    assert.equal(ok.order.balanceDue, 5000);
+
+    const cashOff = await submitCheckout(createFakeSupabase(checkoutTables(meeting), { rpc: rpcCreateOrder }).client, {
+      ...baseInput,
+      deliveryMethod: "meeting_point",
+      address: null,
+      paymentOption: "cash",
+    });
+    assert.deepEqual(cashOff, { ok: false, issues: [{ type: "payment_unavailable" }] });
+
+    const fakeCash = createFakeSupabase(checkoutTables(meeting, { cash_enabled: true }), { rpc: rpcCreateOrder });
+    const cash = await submitCheckout(fakeCash.client, { ...baseInput, deliveryMethod: "meeting_point", address: null, paymentOption: "cash" });
+    assert.ok(cash.ok);
+    assert.deepEqual(cash.order.payment, { status: "cash" });
+    assert.equal(fakeCash.rpcCalls[0].args.p_payment_method, "cash");
   });
 });
 
@@ -318,7 +386,7 @@ describe("ensureShipmentForPaidOrder", () => {
 
   it("4b. el alta asíncrona del proveedor queda como 'processing'", async () => {
     const provider = fakeProvider("andreani", async () => ({ externalId: "ext", trackingNumber: "", status: "processing", raw: {} }));
-    const fake = createFakeSupabase(baseTables({ settings: { active_provider: "andreani" } }));
+    const fake = createFakeSupabase(baseTables({ shippingMethod: "andreani" }));
     const result = await ensureShipmentForPaidOrder(fake.client, "order-1", { resolveProvider: providerRegistry({ andreani: provider }) });
     assert.equal(result.ok, true);
     assert.equal(fake.tables.shipments[0].status, "processing");
@@ -424,8 +492,10 @@ describe("ensureShipmentForPaidOrder", () => {
     assert.deepEqual(inProgress, { ok: false, reason: "in_progress", shipmentId: "ship-p" });
   });
 
-  it("sin proveedor activo no registra nada ni llama a ningún proveedor", async () => {
-    const fake = createFakeSupabase(baseTables({ settings: { active_provider: null } }));
+  it("un pedido sin transportista válido no registra nada ni llama a ningún proveedor", async () => {
+    const tables = baseTables();
+    tables.orders[0].shipping_method = "oca";
+    const fake = createFakeSupabase(tables);
     const result = await ensureShipmentForPaidOrder(fake.client, "order-1", { resolveProvider: providerRegistry({}) });
     assert.deepEqual(result, { ok: false, reason: "provider_not_configured" });
     assert.equal(fake.mutations.length, 0);
@@ -529,7 +599,7 @@ describe("12. credenciales ausentes", () => {
   });
 
   it("Andreani sin credenciales: incidencia controlada", async () => {
-    const fake = createFakeSupabase(baseTables({ settings: { active_provider: "andreani" } }));
+    const fake = createFakeSupabase(baseTables({ shippingMethod: "andreani" }));
     const result = await ensureShipmentForPaidOrder(fake.client, "order-1");
     assert.equal(!result.ok && result.reason, "failed");
     assert.match(String(fake.tables.shipments[0].last_error), /AndreaniNotConfiguredError/);

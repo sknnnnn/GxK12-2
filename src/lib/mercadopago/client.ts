@@ -70,6 +70,8 @@ export type CreatePreferenceInput = {
   externalReference: string;
   backUrls: { success: string; pending: string; failure: string };
   notificationUrl: string;
+  /** Máximo de cuotas configurado por GXK; sin valor, las que ofrezca Mercado Pago. */
+  maxInstallments?: number | null;
 };
 
 export type MercadoPagoPreference = {
@@ -102,6 +104,10 @@ export async function createPreference(input: CreatePreferenceInput): Promise<Me
     },
     notification_url: input.notificationUrl,
   };
+
+  if (input.maxInstallments) {
+    body.payment_methods = { installments: input.maxInstallments };
+  }
 
   // auto_return exige que back_urls.success sea https -- en desarrollo
   // (localhost) la API de Mercado Pago rechaza la preference si se manda,

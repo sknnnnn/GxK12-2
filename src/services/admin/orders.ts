@@ -60,7 +60,10 @@ export const PAYMENT_STATUSES = [
  * abajo) -- deliberadamente sin entradas acá, no se inventan.
  */
 export const ORDER_STATUS_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  pending_payment: ["payment_confirmed"],
+  // pending_payment -> payment_confirmed NO es una transición manual: la
+  // confirmación descuenta stock (primer pago confirmado gana, Bible §17) y
+  // ocurre solo vía webhook de Mercado Pago o registrando un pago en
+  // efectivo (registerManualPayment).
   payment_confirmed: ["preparing"],
   preparing: ["shipped"],
   shipped: ["delivered"],

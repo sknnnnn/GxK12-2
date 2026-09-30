@@ -34,6 +34,7 @@ import {
 } from "./provider";
 
 export * from "./settings";
+export * from "./delivery";
 
 const providers: Record<ShippingProviderId, ShippingProvider> = {
   andreani: new AndreaniShippingProvider(),

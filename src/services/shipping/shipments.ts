@@ -6,8 +6,7 @@
 //
 // Separación de responsabilidades: este módulo SOLO escribe en `shipments`.
 // Nunca toca orders.status, payments ni stock -- si el proveedor falla, el
-// pago sigue confirmado, la reserva de stock sigue descontada y el pedido
-// sigue intacto; la incidencia queda en shipments.status = 'failed' +
+// pago sigue confirmado, el stock sigue descontado y el pedido sigue intacto; la incidencia queda en shipments.status = 'failed' +
 // shipments.last_error, visible y reintentable desde Admin Web.
 //
 // Idempotencia: índice único parcial uq_shipments_order_active (un envío no
@@ -22,7 +21,7 @@ import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import type { Tables } from "@/types/database";
 import { resolveShippingParcel, getShippingProvider } from "./index";
 import type { ShippableOrderItem, ShippingDestination, ShippingProvider, ShippingProviderId } from "./provider";
-import { getShippingSettings, parsePostalAddress } from "./settings";
+import { getShippingSettings, isShippingProviderId, parsePostalAddress } from "./settings";
 
 // Debe coincidir con shipments_status_check (migración shipping_flow).
 export const SHIPMENT_STATUSES = ["pending", "processing", "created", "failed", "cancelled"] as const;
@@ -77,6 +76,8 @@ export type EnsureShipmentResult =
   | { ok: false; reason: "order_not_found" }
   | { ok: false; reason: "order_not_paid"; orderStatus: string }
   | { ok: false; reason: "provider_not_configured" }
+  // Punto de encuentro: no hay envío por transportista que dar de alta.
+  | { ok: false; reason: "not_a_carrier_order" }
   | { ok: false; reason: "already_exists"; shipmentId: string; status: string | null }
   | { ok: false; reason: "in_progress"; shipmentId: string | null }
   | { ok: false; reason: "failed"; shipmentId: string; error: string };
@@ -103,8 +104,8 @@ function isUniqueViolation(error: { code?: string } | null): boolean {
 }
 
 /**
- * Da de alta (o reintenta) el envío de un pedido con pago confirmado usando
- * el proveedor ACTIVO de shipping_settings. Nunca lanza por un fallo del
+ * Da de alta (o reintenta) el envío de un pedido con pago confirmado con el
+ * transportista que eligió el comprador (orders.shipping_method). Nunca lanza por un fallo del
  * proveedor ni por datos faltantes (eso queda registrado como incidencia y
  * se devuelve `reason: "failed"`); sí propaga errores de base de datos.
  */
@@ -118,7 +119,7 @@ export async function ensureShipmentForPaidOrder(
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, status, customer_id, shipping_address")
+    .select("id, order_number, status, customer_id, shipping_address, shipping_method")
     .eq("id", orderId)
     .maybeSingle();
   if (orderError) throw orderError;
@@ -126,6 +127,11 @@ export async function ensureShipmentForPaidOrder(
   if (!SHIPPABLE_ORDER_STATUSES.includes(order.status)) {
     return { ok: false, reason: "order_not_paid", orderStatus: order.status };
   }
+  // El transportista es el que eligió el comprador en el checkout
+  // (orders.shipping_method, Bible §19).
+  if (order.shipping_method === "meeting_point") return { ok: false, reason: "not_a_carrier_order" };
+  if (!isShippingProviderId(order.shipping_method)) return { ok: false, reason: "provider_not_configured" };
+  const providerId: ShippingProviderId = order.shipping_method;
 
   const { data: existingRows, error: existingError } = await supabase
     .from("shipments")
@@ -148,12 +154,6 @@ export async function ensureShipmentForPaidOrder(
   }
 
   const settings = await getShippingSettings(supabase);
-  if (!settings.activeProvider) {
-    // Sin proveedor no se puede ni registrar la fila (shipments.provider es
-    // NOT NULL): el pedido queda "pagado sin envío", visible en Admin > Envíos.
-    return { ok: false, reason: "provider_not_configured" };
-  }
-  const providerId = settings.activeProvider;
   const attemptAt = now().toISOString();
 
   // --- Claim: una sola ejecución concurrente llega al proveedor ------------
@@ -161,7 +161,7 @@ export async function ensureShipmentForPaidOrder(
   if (active) {
     // Reintento de una incidencia ('failed') o de un 'pending' abandonado.
     // Lock optimista por `attempts`: si otro proceso reclamó primero, este
-    // UPDATE no matchea ninguna fila. Usa el proveedor activo HOY (GXK pudo
+    // UPDATE no matchea ninguna fila. Usa el transportista del pedido (GXK pudo
     // cambiarlo justamente por la incidencia).
     const { data: claimed, error: claimError } = await supabase
       .from("shipments")

@@ -1,19 +1,13 @@
 "use server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { submitCheckout } from "@/services/checkout";
-import type { CheckoutCustomerInput, CheckoutResult, CheckoutShippingInput } from "@/services/checkout";
+import { submitCheckout, type CheckoutAddressInput, type CheckoutCustomerInput, type CheckoutResult } from "@/services/checkout";
 import type { CartItemInput } from "@/services/cart";
-
-export type SubmitCheckoutInput = {
-  items: CartItemInput[];
-  customer: CheckoutCustomerInput;
-  shipping: CheckoutShippingInput;
-};
 
 function isCartItemInputArray(value: unknown): value is CartItemInput[] {
   return (
     Array.isArray(value) &&
+    value.length <= 100 &&
     value.every((item) => {
       if (typeof item !== "object" || item === null) return false;
       const record = item as Record<string, unknown>;
@@ -25,39 +19,39 @@ function isCartItemInputArray(value: unknown): value is CartItemInput[] {
 function isStringRecord(value: unknown, keys: string[]): value is Record<string, string> {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
-  return keys.every((key) => typeof record[key] === "string");
+  return keys.every((key) => typeof record[key] === "string" && (record[key] as string).length <= 200);
 }
 
+const CUSTOMER_KEYS = ["firstName", "lastName", "email", "phone"];
+const ADDRESS_KEYS = ["streetName", "streetNumber", "floor", "apartment", "locality", "province", "postalCode"];
+
 /**
- * Server Action que dispara el checkout desde el Storefront (guest
- * checkout, ver src/app/(storefront)/checkout/page.tsx). Es un endpoint POST
- * alcanzable directamente sin pasar por la UI (ver docs Server Actions):
- * el payload llega tipado como `unknown` a propósito y se valida en forma
- * acá antes de delegar cualquier dato a services/checkout, que es quien
- * revalida contra Supabase todo lo sensible (precio, stock, variante).
+ * Server Action del checkout (compra sin cuenta). Es un POST alcanzable sin
+ * la UI: el payload llega como `unknown` y se valida la forma acá; todo lo
+ * sensible (precio, stock, modalidad, costo, medio de pago) lo decide
+ * services/checkout contra Supabase.
  */
 export async function submitCheckoutAction(input: unknown): Promise<CheckoutResult> {
-  if (typeof input !== "object" || input === null) {
-    return { ok: false, issues: [{ type: "malformed_request" }] };
-  }
-
-  const { items, customer, shipping } = input as Record<string, unknown>;
+  if (typeof input !== "object" || input === null) return { ok: false, issues: [{ type: "malformed_request" }] };
+  const { items, customer, deliveryMethod, address, paymentOption } = input as Record<string, unknown>;
 
   if (
     !isCartItemInputArray(items) ||
-    !isStringRecord(customer, ["firstName", "lastName", "email", "phone"]) ||
-    !isStringRecord(shipping, ["address", "locality", "province", "postalCode"])
+    !isStringRecord(customer, CUSTOMER_KEYS) ||
+    typeof deliveryMethod !== "string" ||
+    typeof paymentOption !== "string" ||
+    (address !== null && !isStringRecord(address, ADDRESS_KEYS))
   ) {
     return { ok: false, issues: [{ type: "malformed_request" }] };
   }
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
-
-  const supabase = createSupabaseAdminClient();
-  return submitCheckout(supabase, {
+  return submitCheckout(createSupabaseAdminClient(), {
     items,
     customer: customer as CheckoutCustomerInput,
-    shipping: shipping as CheckoutShippingInput,
+    deliveryMethod,
+    address: address as CheckoutAddressInput | null,
+    paymentOption,
     siteUrl,
   });
 }
