@@ -179,7 +179,9 @@ export type AdminProductDetail = {
   id: string;
   slug: string;
   name: string;
+  productType: string | null;
   description: string | null;
+  composition: string | null;
   price: number;
   status: string;
   isFeatured: boolean;
@@ -199,7 +201,9 @@ type AdminProductDetailQueryRow = Pick<
   | "id"
   | "slug"
   | "name"
+  | "product_type"
   | "description"
+  | "composition"
   | "price"
   | "status"
   | "is_featured"
@@ -226,7 +230,7 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, slug, name, description, price, status, is_featured, category_id, updated_at, weight_grams, length_cm, width_cm, height_cm, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
+      "id, slug, name, product_type, description, composition, price, status, is_featured, category_id, updated_at, weight_grams, length_cm, width_cm, height_cm, product_images ( id, storage_path, alt_text, is_primary, sort_order ), product_variants ( id, sku, price_override, stock, is_active, size_id, color_id )",
     )
     .eq("id", id)
     .maybeSingle()
@@ -260,7 +264,9 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
     id: product.id,
     slug: product.slug,
     name: product.name,
+    productType: product.product_type,
     description: product.description,
+    composition: product.composition,
     price: product.price,
     status: product.status,
     isFeatured: product.is_featured,
@@ -305,7 +311,11 @@ export async function getAdminProductById(supabase: GxkSupabaseClient, id: strin
 export type ProductInput = {
   name: string;
   slug: string;
+  /** Tipo de prenda (Bible §16). */
+  productType: string | null;
   description: string | null;
+  /** Composición (Bible §16). */
+  composition: string | null;
   price: number;
   categoryId: string;
   status: ProductStatus;
@@ -323,7 +333,9 @@ export async function createProduct(supabase: GxkSupabaseClient, input: ProductI
     .insert({
       name: input.name,
       slug: input.slug,
+      product_type: input.productType,
       description: input.description,
+      composition: input.composition,
       price: input.price,
       category_id: input.categoryId,
       status: input.status,
@@ -353,7 +365,9 @@ export async function updateProduct(supabase: GxkSupabaseClient, id: string, inp
     .update({
       name: input.name,
       slug: input.slug,
+      product_type: input.productType,
       description: input.description,
+      composition: input.composition,
       price: input.price,
       category_id: input.categoryId,
       status: input.status,
@@ -503,4 +517,45 @@ export async function deleteProductImage(supabase: GxkSupabaseClient, imageId: s
   if (storageError) {
     console.error(`No se pudo borrar el objeto de Storage ${data.storage_path}:`, storageError);
   }
+}
+
+// ----------------------------------------------------------------------------
+// Medidas reales por talle (Bible §20)
+// ----------------------------------------------------------------------------
+
+export type AdminMeasurementRow = { sizeId: string | null; label: string; valueCm: number };
+
+export async function getProductMeasurementRows(supabase: GxkSupabaseClient, productId: string): Promise<AdminMeasurementRow[]> {
+  const { data, error } = await supabase
+    .from("product_measurements")
+    .select("size_id, label, value_cm, sort_order")
+    .eq("product_id", productId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ sizeId: row.size_id, label: row.label, valueCm: Number(row.value_cm) }));
+}
+
+/**
+ * Reemplaza la tabla de medidas del producto por la recibida (ya validada).
+ * El orden de las etiquetas define sort_order.
+ */
+export async function replaceProductMeasurements(
+  supabase: GxkSupabaseClient,
+  productId: string,
+  labels: string[],
+  rows: AdminMeasurementRow[],
+): Promise<void> {
+  const { error: deleteError } = await supabase.from("product_measurements").delete().eq("product_id", productId);
+  if (deleteError) throw deleteError;
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("product_measurements").insert(
+    rows.map((row) => ({
+      product_id: productId,
+      size_id: row.sizeId,
+      label: row.label,
+      value_cm: row.valueCm,
+      sort_order: Math.max(0, labels.indexOf(row.label)),
+    })),
+  );
+  if (error) throw error;
 }

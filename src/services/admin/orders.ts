@@ -240,6 +240,11 @@ export type AdminOrderShipment = {
 };
 
 export type OrderShippingAddress = {
+  streetName?: string;
+  streetNumber?: string;
+  floor?: string;
+  apartment?: string;
+  /** Formato anterior (una sola línea). */
   address?: string;
   locality?: string;
   province?: string;
@@ -256,6 +261,16 @@ export type AdminOrderDetail = {
   total: number;
   shippingMethod: string;
   shippingAddress: OrderShippingAddress;
+  meetingPointDetails: string | null;
+  paymentMethod: string;
+  paymentPlan: string;
+  amountDueOnline: number | null;
+  balanceDue: number;
+  stockCommitted: boolean;
+  incidenceReason: string | null;
+  cancelReason: string | null;
+  history: { status: string; at: string }[];
+  emails: { template: string; status: string; createdAt: string }[];
   customer: { name: string; email: string; phone: string };
   items: AdminOrderItem[];
   /** Todos los intentos de pago (payments es 1:N por diseño, ver migración inicial), más reciente primero. */
@@ -266,7 +281,23 @@ export type AdminOrderDetail = {
 
 type AdminOrderDetailQueryRow = Pick<
   Tables<"orders">,
-  "id" | "order_number" | "created_at" | "status" | "subtotal" | "shipping_cost" | "total" | "shipping_method" | "shipping_address"
+  | "id"
+  | "order_number"
+  | "created_at"
+  | "status"
+  | "subtotal"
+  | "shipping_cost"
+  | "total"
+  | "shipping_method"
+  | "shipping_address"
+  | "meeting_point_details"
+  | "payment_method"
+  | "payment_plan"
+  | "amount_due_online"
+  | "balance_due"
+  | "stock_committed"
+  | "incidence_reason"
+  | "cancel_reason"
 > & {
   customers: Pick<Tables<"customers">, "name" | "email" | "phone"> | null;
   order_items: Pick<
@@ -280,7 +311,7 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
   const { data: order, error } = await supabase
     .from("orders")
     .select(
-      "id, order_number, created_at, status, subtotal, shipping_cost, total, shipping_method, shipping_address, customers ( name, email, phone ), order_items ( id, product_id, variant_id, product_name, variant_label, sku, unit_price, quantity, subtotal )",
+      "id, order_number, created_at, status, subtotal, shipping_cost, total, shipping_method, shipping_address, meeting_point_details, payment_method, payment_plan, amount_due_online, balance_due, stock_committed, incidence_reason, cancel_reason, customers ( name, email, phone ), order_items ( id, product_id, variant_id, product_name, variant_label, sku, unit_price, quantity, subtotal )",
     )
     .eq("id", id)
     .maybeSingle()
@@ -291,7 +322,7 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
 
   const productIds = [...new Set(order.order_items.map((item) => item.product_id).filter((v): v is string => v !== null))];
 
-  const [paymentsRes, shipmentsRes, imagesRes] = await Promise.all([
+  const [paymentsRes, shipmentsRes, imagesRes, historyRes, emailsRes] = await Promise.all([
     supabase
       .from("payments")
       .select("id, provider, external_id, status, amount, currency, created_at")
@@ -309,8 +340,12 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
           data: Pick<Tables<"product_images">, "product_id" | "storage_path" | "is_primary" | "sort_order">[];
           error: null;
         }>({ data: [], error: null }),
+    supabase.from("order_status_history").select("status, created_at").eq("order_id", id).order("created_at", { ascending: true }),
+    supabase.from("email_log").select("template, status, created_at").eq("order_id", id).order("created_at", { ascending: false }),
   ]);
 
+  if (historyRes.error) throw historyRes.error;
+  if (emailsRes.error) throw emailsRes.error;
   if (paymentsRes.error) throw paymentsRes.error;
   if (shipmentsRes.error) throw shipmentsRes.error;
   if (imagesRes.error) throw imagesRes.error;
@@ -340,6 +375,16 @@ export async function getAdminOrderById(supabase: GxkSupabaseClient, id: string)
     total: order.total,
     shippingMethod: order.shipping_method,
     shippingAddress: (order.shipping_address ?? {}) as OrderShippingAddress,
+    meetingPointDetails: order.meeting_point_details,
+    paymentMethod: order.payment_method,
+    paymentPlan: order.payment_plan,
+    amountDueOnline: order.amount_due_online === null ? null : Number(order.amount_due_online),
+    balanceDue: Number(order.balance_due),
+    stockCommitted: order.stock_committed,
+    incidenceReason: order.incidence_reason,
+    cancelReason: order.cancel_reason,
+    history: (historyRes.data ?? []).map((entry) => ({ status: entry.status, at: entry.created_at })),
+    emails: (emailsRes.data ?? []).map((entry) => ({ template: entry.template, status: entry.status, createdAt: entry.created_at })),
     customer: {
       name: order.customers?.name ?? "—",
       email: order.customers?.email ?? "—",
@@ -431,5 +476,51 @@ export async function updateOrderStatus(
   if (error) throw error;
   if (!updated || updated.length === 0) return { ok: false, reason: "invalid_transition" };
 
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------------------
+// Pagos manuales y cancelación (Bloque 3/4)
+// ----------------------------------------------------------------------------
+
+export type RegisterManualPaymentResult =
+  | { ok: true; outcome: "confirmed" | "stock_conflict" | "balance_updated" | "already_committed" | "not_confirmable" }
+  | { ok: false; reason: "not_allowed" | "invalid_amount" | "order_closed" | "not_found" };
+
+/**
+ * Pago en efectivo o saldo cobrado en la entrega (punto de encuentro). Si
+ * el pedido no estaba confirmado, este pago lo confirma y compite por el
+ * stock como cualquier pago (primer pago confirmado gana, Bible §17).
+ */
+export async function registerManualPayment(
+  supabase: GxkSupabaseClient,
+  orderId: string,
+  amount: number,
+): Promise<RegisterManualPaymentResult> {
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, reason: "invalid_amount" };
+  const { data, error } = await supabase.rpc("admin_register_manual_payment", { p_order_id: orderId, p_amount: amount });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("not_allowed")) return { ok: false, reason: "not_allowed" };
+    if (message.includes("invalid_amount")) return { ok: false, reason: "invalid_amount" };
+    if (message.includes("order_closed")) return { ok: false, reason: "order_closed" };
+    if (message.includes("order_not_found")) return { ok: false, reason: "not_found" };
+    throw error;
+  }
+  return { ok: true, outcome: data as "confirmed" | "stock_conflict" | "balance_updated" | "already_committed" | "not_confirmable" };
+}
+
+export type CancelOrderResult = { ok: true } | { ok: false; reason: "not_allowed" | "invalid_transition" | "not_found" };
+
+/** Cancela el pedido y repone el stock si estaba descontado. */
+export async function cancelOrder(supabase: GxkSupabaseClient, orderId: string, reason: string): Promise<CancelOrderResult> {
+  const { error } = await supabase.rpc("admin_cancel_order", { p_order_id: orderId, p_reason: reason });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("not_allowed")) return { ok: false, reason: "not_allowed" };
+    if (message.includes("invalid_transition")) return { ok: false, reason: "invalid_transition" };
+    if (message.includes("order_not_found")) return { ok: false, reason: "not_found" };
+    throw error;
+  }
   return { ok: true };
 }

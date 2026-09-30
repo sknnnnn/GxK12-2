@@ -37,6 +37,123 @@ export type Database = {
         }
         Relationships: []
       }
+      adventure_chapters: {
+        Row: {
+          cover_path: string | null
+          created_at: string
+          id: string
+          label: string
+          season_id: string
+          slug: string
+          sort_order: number
+          status: string
+          summary: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          season_id: string
+          slug: string
+          sort_order?: number
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          season_id?: string
+          slug?: string
+          sort_order?: number
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      adventure_seasons: {
+        Row: {
+          cover_path: string | null
+          created_at: string
+          id: string
+          number: number
+          slug: string
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          number: number
+          slug: string
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          number?: number
+          slug?: string
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      adventures: {
+        Row: {
+          body: string | null
+          chapter_id: string
+          cover_path: string | null
+          created_at: string
+          id: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          body?: string | null
+          chapter_id: string
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          body?: string | null
+          chapter_id?: string
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -187,6 +304,96 @@ export type Database = {
           recipient?: string
           status?: string
           template?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          cover_path: string | null
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          kind: string
+          members_only: boolean
+          participation: string | null
+          place: string | null
+          schedule: string | null
+          slug: string
+          starts_at: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          kind: string
+          members_only?: boolean
+          participation?: string | null
+          place?: string | null
+          schedule?: string | null
+          slug: string
+          starts_at: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          members_only?: boolean
+          participation?: string | null
+          place?: string | null
+          schedule?: string | null
+          slug?: string
+          starts_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      manual_sales: {
+        Row: {
+          channel: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          product_name: string
+          quantity: number
+          variant_id: string | null
+          variant_label: string | null
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          product_name: string
+          quantity: number
+          variant_id?: string | null
+          variant_label?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          product_name?: string
+          quantity?: number
+          variant_id?: string | null
+          variant_label?: string | null
         }
         Relationships: []
       }
@@ -427,6 +634,7 @@ export type Database = {
           sort_order: number
           starts_at: string | null
           status: string
+          style: string | null
           updated_at: string
         }
         Insert: {
@@ -440,6 +648,7 @@ export type Database = {
           sort_order?: number
           starts_at?: string | null
           status?: string
+          style?: string | null
           updated_at?: string
         }
         Update: {
@@ -453,6 +662,7 @@ export type Database = {
           sort_order?: number
           starts_at?: string | null
           status?: string
+          style?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -822,23 +1032,44 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          about_body: string | null
+          gk_description: string | null
+          help_body: string | null
+          hero_image_alt: string | null
+          hero_image_path: string | null
           id: boolean
           instagram_url: string | null
+          members_description: string | null
           tiktok_url: string | null
+          universo_description: string | null
           updated_at: string
           whatsapp_number: string | null
         }
         Insert: {
+          about_body?: string | null
+          gk_description?: string | null
+          help_body?: string | null
+          hero_image_alt?: string | null
+          hero_image_path?: string | null
           id?: boolean
           instagram_url?: string | null
+          members_description?: string | null
           tiktok_url?: string | null
+          universo_description?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
         Update: {
+          about_body?: string | null
+          gk_description?: string | null
+          help_body?: string | null
+          hero_image_alt?: string | null
+          hero_image_path?: string | null
           id?: boolean
           instagram_url?: string | null
+          members_description?: string | null
           tiktok_url?: string | null
+          universo_description?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -868,6 +1099,120 @@ export type Database = {
           name?: string
           sort_order?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      universe_entries: {
+        Row: {
+          body: string | null
+          cover_path: string | null
+          created_at: string
+          id: string
+          kind: string
+          members_only: boolean
+          published_at: string
+          slug: string
+          sort_order: number
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          body?: string | null
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          members_only?: boolean
+          published_at?: string
+          slug: string
+          sort_order?: number
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          body?: string | null
+          cover_path?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          members_only?: boolean
+          published_at?: string
+          slug?: string
+          sort_order?: number
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
+      universe_entry_media: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          entry_id: string
+          id: string
+          sort_order: number
+          storage_path: string
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          entry_id: string
+          id?: string
+          sort_order?: number
+          storage_path: string
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          entry_id?: string
+          id?: string
+          sort_order?: number
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      universe_entry_outfits: {
+        Row: {
+          entry_id: string
+          outfit_id: string
+          sort_order: number
+        }
+        Insert: {
+          entry_id: string
+          outfit_id: string
+          sort_order?: number
+        }
+        Update: {
+          entry_id?: string
+          outfit_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      universe_entry_products: {
+        Row: {
+          entry_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          entry_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          entry_id?: string
+          product_id?: string
+          sort_order?: number
         }
         Relationships: []
       }
@@ -910,6 +1255,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_record_manual_sale: {
+        Args: { p_channel: string; p_note: string | null; p_quantity: number; p_variant_id: string }
+        Returns: number
+      }
       admin_cancel_order: { Args: { p_order_id: string; p_reason: string }; Returns: undefined }
       admin_register_manual_payment: { Args: { p_amount: number; p_order_id: string }; Returns: string }
       confirm_order_payment: { Args: { p_order_id: string }; Returns: string }

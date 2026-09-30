@@ -4,17 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminOrders, ORDER_STATUSES, PAYMENT_STATUSES, type OrderStatus } from "@/services/admin";
 import { formatPrice } from "@/lib/format";
 import styles from "./page.module.css";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/status";
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending_payment: "Pendiente de pago",
-  payment_confirmed: "Pago confirmado",
-  preparing: "Preparando",
-  shipped: "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-  refunded: "Reembolsado",
-  incidence: "Incidencia",
-};
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",

@@ -4,15 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./AdminShell.module.css";
 
-// Navegación preparada para crecer: las secciones sin gestión completa
-// todavía son placeholders funcionales (ver src/app/admin/(protected)/*),
-// pero ya quedan en el menú.
+// Secciones de Admin (Bible §34: operar sin developer).
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/productos", label: "Productos" },
+  { href: "/admin/catalogo-base", label: "Categorías, talles y colores" },
   { href: "/admin/inventario", label: "Inventario" },
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/envios", label: "Envíos" },
+  { href: "/admin/outfits", label: "Outfits" },
+  { href: "/admin/universo", label: "Universo" },
+  { href: "/admin/aventuras", label: "Aventuras" },
+  { href: "/admin/eventos", label: "Eventos" },
+  { href: "/admin/contenido", label: "Contenido" },
   { href: "/admin/configuracion", label: "Configuración" },
 ] as const;
 

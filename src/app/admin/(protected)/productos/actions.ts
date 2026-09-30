@@ -6,6 +6,7 @@ import {
   createProduct,
   createVariant,
   deleteProductImage,
+  replaceProductMeasurements,
   PRODUCT_STATUSES,
   setPrimaryProductImage,
   updateProduct,
@@ -63,6 +64,8 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
   const name = String(formData.get("name") ?? "").trim();
   const slugRaw = String(formData.get("slug") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const productType = String(formData.get("productType") ?? "").trim();
+  const composition = String(formData.get("composition") ?? "").trim();
   const priceRaw = String(formData.get("price") ?? "").trim();
   const categoryId = String(formData.get("categoryId") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
@@ -96,7 +99,9 @@ function parseProductInput(formData: FormData): { input: ProductInput } | { erro
     input: {
       name,
       slug,
+      productType: productType || null,
       description: description || null,
+      composition: composition || null,
       price,
       categoryId,
       status: status as ProductStatus,
@@ -270,5 +275,40 @@ export async function deleteImageAction(productId: string, imageId: string, form
   } catch {
     redirect(`/admin/productos/${productId}?error=${encodeURIComponent("No se pudo eliminar la imagen.")}`);
   }
+  redirect(`/admin/productos/${productId}?success=1`);
+}
+
+// ----------------------------------------------------------------------------
+// Medidas reales por talle (Bible §20)
+// ----------------------------------------------------------------------------
+
+export async function saveMeasurementsAction(productId: string, formData: FormData): Promise<void> {
+  const slotCount = Math.min(20, Number(formData.get("slotCount") ?? 0));
+  const sizeKeys = String(formData.get("sizeKeys") ?? "")
+    .split(",")
+    .filter(Boolean);
+
+  const labels: string[] = [];
+  const rows: { sizeId: string | null; label: string; valueCm: number }[] = [];
+  for (let index = 0; index < slotCount; index++) {
+    const label = String(formData.get(`label_${index}`) ?? "").trim().slice(0, 40);
+    if (!label) continue;
+    if (labels.some((existing) => existing.toLowerCase() === label.toLowerCase())) {
+      redirect(`/admin/productos/${productId}?error=${encodeURIComponent(`La medida "${label}" está repetida.`)}`);
+    }
+    labels.push(label);
+    for (const sizeKey of sizeKeys) {
+      const raw = String(formData.get(`value_${sizeKey}_${index}`) ?? "").trim().replace(",", ".");
+      if (!raw) continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0 || value > 9999) {
+        redirect(`/admin/productos/${productId}?error=${encodeURIComponent(`Valor inválido en "${label}": ${raw}`)}`);
+      }
+      rows.push({ sizeId: sizeKey === "none" ? null : sizeKey, label, valueCm: Math.round(value * 10) / 10 });
+    }
+  }
+
+  const supabase = await createSupabaseServerClient();
+  await replaceProductMeasurements(supabase, productId, labels, rows);
   redirect(`/admin/productos/${productId}?success=1`);
 }

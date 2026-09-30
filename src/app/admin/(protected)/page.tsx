@@ -3,17 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardSummary, getRecentOrders, getStockAlerts, LOW_STOCK_THRESHOLD, type StockAlertVariant } from "@/services/admin";
 import { formatPrice } from "@/lib/format";
 import styles from "./page.module.css";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/status";
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending_payment: "Pendiente de pago",
-  payment_confirmed: "Pago confirmado",
-  preparing: "Preparando",
-  shipped: "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-  refunded: "Reembolsado",
-  incidence: "Incidencia",
-};
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -95,6 +86,10 @@ export default async function AdminDashboardPage() {
             <span className={styles.summaryLabel}>Pedidos por preparar</span>
             <span className={styles.summaryValue}>{summary.paidAwaitingShipmentOrders}</span>
             <span className={styles.summaryNote}>Pago confirmado, todavía sin preparar</span>
+          </Link>
+          <Link href="/admin/pedidos?pedido=incidence" className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Pedidos con incidencia</span>
+            <span className={styles.summaryValue}>{summary.incidenceOrders}</span>
           </Link>
           <Link href="/admin/envios" className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Envíos con incidencia</span>

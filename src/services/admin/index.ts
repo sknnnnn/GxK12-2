@@ -32,6 +32,11 @@ import { LOW_STOCK_THRESHOLD } from "./inventory";
 export * from "./products";
 export * from "./inventory";
 export * from "./orders";
+export * from "./catalogBase";
+export * from "./manualSales";
+export * from "./media";
+export * from "./outfits";
+export * from "./universe";
 
 // Pedidos considerados "venta" para el total de Ventas del dashboard:
 // pending_payment (todavía no pagó) y cancelled/refunded (no se concretó o
@@ -76,6 +81,8 @@ export type DashboardSummary = {
   paidAwaitingShipmentOrders: number;
   /** Envíos cuya alta en el proveedor falló (shipments.status = 'failed', ver services/shipping/shipments). */
   failedShipments: number;
+  /** Pedidos en incidencia (p. ej. pago confirmado sin stock): requieren acción. */
+  incidenceOrders: number;
   totalSalesAmount: number;
   lowStockCount: number;
   outOfStockCount: number;
@@ -86,13 +93,16 @@ export type DashboardSummary = {
  * (orders.status, product_variants.stock) -- nada hardcodeado.
  */
 export async function getDashboardSummary(supabase: GxkSupabaseClient): Promise<DashboardSummary> {
-  const [pendingCount, paidCount, failedShipmentsCount, salesRows, stockRows] = await Promise.all([
+  const [pendingCount, paidCount, failedShipmentsCount, salesRows, stockRows, incidenceCount] = await Promise.all([
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "payment_confirmed"),
     supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "failed"),
     supabase.from("orders").select("total").in("status", SALE_COUNTED_ORDER_STATUSES),
     supabase.from("product_variants").select("stock").eq("is_active", true).lte("stock", LOW_STOCK_THRESHOLD),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "incidence"),
   ]);
+
+  if (incidenceCount.error) throw incidenceCount.error;
 
   if (pendingCount.error) throw pendingCount.error;
   if (paidCount.error) throw paidCount.error;
@@ -107,6 +117,7 @@ export async function getDashboardSummary(supabase: GxkSupabaseClient): Promise<
     pendingPaymentOrders: pendingCount.count ?? 0,
     paidAwaitingShipmentOrders: paidCount.count ?? 0,
     failedShipments: failedShipmentsCount.count ?? 0,
+    incidenceOrders: incidenceCount.count ?? 0,
     totalSalesAmount,
     lowStockCount: stocks.filter((stock) => stock > 0).length,
     outOfStockCount: stocks.filter((stock) => stock === 0).length,

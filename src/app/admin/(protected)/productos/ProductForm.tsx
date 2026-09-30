@@ -16,7 +16,9 @@ type InitialProduct = Pick<
   AdminProductDetail,
   | "name"
   | "slug"
+  | "productType"
   | "description"
+  | "composition"
   | "price"
   | "categoryId"
   | "status"
@@ -60,8 +62,18 @@ export function ProductForm({
       </label>
 
       <label className={styles.field}>
+        Tipo (ej. remera oversize; también ayuda a encontrarlo en la búsqueda)
+        <input type="text" name="productType" defaultValue={initialProduct?.productType ?? ""} />
+      </label>
+
+      <label className={styles.field}>
         Descripción
         <textarea name="description" rows={4} defaultValue={initialProduct?.description ?? ""} />
+      </label>
+
+      <label className={styles.field}>
+        Composición
+        <input type="text" name="composition" defaultValue={initialProduct?.composition ?? ""} placeholder="Ej. 100% algodón" />
       </label>
 
       <div className={styles.row}>

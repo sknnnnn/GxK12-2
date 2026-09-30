@@ -3,12 +3,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getCategoryOptions,
   getInventoryItems,
+  getRecentManualSales,
+  MANUAL_SALE_CHANNEL_LABELS,
+  MANUAL_SALE_CHANNELS,
   PRODUCT_STATUSES,
   type ProductStatus,
   type StockStatus,
 } from "@/services/admin";
 import { SubmitButton } from "@/components/admin/SubmitButton";
-import { updateStockAction } from "./actions";
+import { recordManualSaleAction, updateStockAction } from "./actions";
 import styles from "./page.module.css";
 
 const PRODUCT_STATUS_LABELS: Record<string, string> = {
@@ -67,9 +70,10 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
   const showSuccess = searchParams.success === "1";
 
   const supabase = await createSupabaseServerClient();
-  const [items, categories] = await Promise.all([
+  const [items, categories, recentSales] = await Promise.all([
     getInventoryItems(supabase, { search, categoryId, productStatus, stockStatus, variantActivity, sort }),
     getCategoryOptions(supabase),
+    getRecentManualSales(supabase),
   ]);
 
   // Query string de esta misma vista (sin error/success) -- se manda como
@@ -155,6 +159,11 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
         </button>
       </form>
 
+      <p>
+        Las ventas por Instagram, WhatsApp, eventos o presencial se descuentan con <strong>Venta manual</strong> (queda registrada con
+        su canal).
+      </p>
+
       {items.length === 0 ? (
         <p className={styles.emptyState}>
           No hay variantes que coincidan con estos filtros. <Link href="/admin/inventario">Quitar filtros</Link>
@@ -173,6 +182,7 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
                 <th>Estado de stock</th>
                 <th>Variante</th>
                 <th>Editar stock</th>
+                <th>Venta manual</th>
               </tr>
             </thead>
             <tbody>
@@ -212,11 +222,61 @@ export default async function AdminInventarioPage(props: PageProps<"/admin/inven
                       <SubmitButton className={styles.saveButton}>Guardar</SubmitButton>
                     </form>
                   </td>
+                  <td>
+                    <form action={recordManualSaleAction.bind(null, item.variantId)} className={styles.stockForm}>
+                      <input type="hidden" name="returnQuery" value={returnQuery} />
+                      <select name="channel" aria-label="Canal" defaultValue="instagram">
+                        {MANUAL_SALE_CHANNELS.map((channel) => (
+                          <option key={channel} value={channel}>
+                            {MANUAL_SALE_CHANNEL_LABELS[channel]}
+                          </option>
+                        ))}
+                      </select>
+                      <input type="number" name="quantity" min="1" step="1" defaultValue={1} aria-label="Cantidad" style={{ width: "4rem" }} />
+                      <input type="text" name="note" placeholder="Nota (opcional)" aria-label="Nota" />
+                      <SubmitButton className={styles.saveButton} confirmText="¿Descontar esta venta del stock?">
+                        Descontar
+                      </SubmitButton>
+                    </form>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {recentSales.length > 0 && (
+        <section>
+          <h2>Últimas ventas manuales</h2>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Producto</th>
+                  <th>Canal</th>
+                  <th>Cantidad</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentSales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td>{new Date(sale.createdAt).toLocaleString("es-AR")}</td>
+                    <td>
+                      {sale.productName}
+                      {sale.variantLabel ? ` (${sale.variantLabel})` : ""}
+                    </td>
+                    <td>{MANUAL_SALE_CHANNEL_LABELS[sale.channel as keyof typeof MANUAL_SALE_CHANNEL_LABELS] ?? sale.channel}</td>
+                    <td>{sale.quantity}</td>
+                    <td>{sale.note ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );

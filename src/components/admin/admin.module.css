@@ -1,0 +1,152 @@
+/* Estilos neutros compartidos por las pantallas de Admin nuevas. La
+   dirección visual definitiva sale de Figma. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  min-width: 10rem;
+  flex: 1;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #171717;
+  border-radius: 4px;
+  background: #171717;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.buttonSecondary {
+  padding: 0.5rem 1rem;
+  border: 1px solid #171717;
+  border-radius: 4px;
+  background: #fff;
+  color: #171717;
+  font: inherit;
+  cursor: pointer;
+}
+
+.danger {
+  padding: 0.5rem 1rem;
+  border: 1px solid #a40000;
+  border-radius: 4px;
+  background: #fff;
+  color: #a40000;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+
+.error {
+  color: #a40000;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #a40000;
+  border-radius: 4px;
+}
+
+.success {
+  color: #0a6b2d;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #0a6b2d;
+  border-radius: 4px;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  font-size: 0.75rem;
+}
+
+.thumb {
+  width: 64px;
+  height: 80px;
+  object-fit: cover;
+  background: #eee;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

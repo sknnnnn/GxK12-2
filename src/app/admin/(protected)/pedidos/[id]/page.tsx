@@ -3,22 +3,30 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminOrderById, ORDER_STATUS_TRANSITIONS, type OrderStatus } from "@/services/admin";
 import { formatPrice } from "@/lib/format";
-import { updateOrderStatusAction } from "../actions";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/status";
+import { cancelOrderAction, registerManualPaymentAction, updateOrderStatusAction } from "../actions";
 import { retryShipmentAction } from "../../envios/actions";
 import { SHIPMENT_STATUS_LABELS } from "@/services/shipping/shipments";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import styles from "./page.module.css";
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending_payment: "Pendiente de pago",
-  payment_confirmed: "Pago confirmado",
-  preparing: "Preparando",
-  shipped: "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-  refunded: "Reembolsado",
-  incidence: "Incidencia",
+const DELIVERY_LABELS: Record<string, string> = {
+  andreani: "Andreani",
+  correo_argentino: "Correo Argentino",
+  meeting_point: "Punto de encuentro",
 };
+
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  "mercado_pago:full": "Mercado Pago — pago completo",
+  "mercado_pago:deposit": "Mercado Pago — 50% de reserva + 50% en la entrega",
+  "cash:full": "Efectivo en la entrega",
+};
+
+const INCIDENCE_LABELS: Record<string, string> = {
+  stock_conflict: "Pago confirmado sin stock (otro pago confirmado ganó). Hay que devolver el dinero y cancelar.",
+};
+
+const CANCELLABLE = ["pending_payment", "payment_confirmed", "preparing", "incidence"];
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -52,8 +60,12 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
   }
 
   const errorMessage = typeof searchParams.error === "string" ? searchParams.error : null;
-  const showSuccess = searchParams.success === "1";
-  const showShipmentSuccess = searchParams.success === "envio";
+  const successParam = typeof searchParams.success === "string" ? searchParams.success : null;
+  const showSuccess = successParam !== null && successParam !== "envio";
+  const showShipmentSuccess = successParam === "envio";
+  const closed = ["cancelled", "refunded", "delivered"].includes(order.status);
+  const canRegisterPayment = !closed && (order.balanceDue > 0 || !order.stockCommitted) && order.status !== "incidence";
+  const suggestedAmount = order.stockCommitted ? order.balanceDue : order.paymentMethod === "cash" ? order.total : order.balanceDue || order.total;
 
   const allowedNext = ORDER_STATUS_TRANSITIONS[order.status as OrderStatus] ?? [];
   const latestPayment = order.payments[0] ?? null;
@@ -69,7 +81,13 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
       </div>
 
       {errorMessage && <p className={styles.error}>{errorMessage}</p>}
-      {showSuccess && <p className={styles.success}>Estado actualizado.</p>}
+      {showSuccess && <p className={styles.success}>Cambios guardados.</p>}
+      {order.status === "incidence" && (
+        <p className={styles.error}>
+          Incidencia: {order.incidenceReason ? (INCIDENCE_LABELS[order.incidenceReason] ?? order.incidenceReason) : "sin detalle"}
+        </p>
+      )}
+      {order.status === "cancelled" && order.cancelReason && <p className={styles.muted}>Motivo de cancelación: {order.cancelReason}</p>}
       {showShipmentSuccess && <p className={styles.success}>Envío dado de alta.</p>}
 
       <div className={styles.summaryGrid}>
@@ -116,7 +134,42 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
           ))}
         </div>
       ) : (
-        <p className={styles.noTransitions}>No hay transiciones disponibles desde el estado actual.</p>
+        <p className={styles.noTransitions}>
+          {order.status === "pending_payment"
+            ? "El pedido se confirma con el pago: por Mercado Pago (automático) o registrando el pago en efectivo abajo."
+            : "No hay transiciones disponibles desde el estado actual."}
+        </p>
+      )}
+
+      {canRegisterPayment && (
+        <form action={registerManualPaymentAction.bind(null, order.id)} className={styles.transitions}>
+          <label>
+            {order.stockCommitted ? "Cobrar saldo en la entrega" : "Registrar pago en efectivo"} (ARS){" "}
+            <input name="amount" inputMode="decimal" defaultValue={suggestedAmount} required style={{ width: "8rem" }} />
+          </label>
+          <SubmitButton
+            className={styles.transitionButton}
+            pendingText="Registrando…"
+            confirmText={`¿Registrar este pago para ${order.orderNumber}?`}
+          >
+            Registrar pago
+          </SubmitButton>
+        </form>
+      )}
+
+      {CANCELLABLE.includes(order.status) && (
+        <form action={cancelOrderAction.bind(null, order.id)} className={styles.transitions}>
+          <label>
+            Motivo <input name="reason" placeholder="Opcional" maxLength={200} />
+          </label>
+          <SubmitButton
+            className={styles.transitionButton}
+            pendingText="Cancelando…"
+            confirmText={`¿Cancelar el pedido ${order.orderNumber}? Si tenía stock descontado, se repone. Un reembolso de Mercado Pago se hace desde Mercado Pago.`}
+          >
+            Cancelar pedido
+          </SubmitButton>
+        </form>
       )}
 
       <section className={styles.section}>
@@ -189,6 +242,16 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Pago</h2>
+        <dl className={styles.definitionList}>
+          <dt>Modalidad</dt>
+          <dd>{PAYMENT_MODE_LABELS[`${order.paymentMethod}:${order.paymentPlan}`] ?? order.paymentMethod}</dd>
+          <dt>A pagar online</dt>
+          <dd>{order.amountDueOnline !== null ? formatPrice(order.amountDueOnline) : "—"}</dd>
+          <dt>Saldo en la entrega</dt>
+          <dd>{formatPrice(order.balanceDue)}</dd>
+          <dt>Stock descontado</dt>
+          <dd>{order.stockCommitted ? "Sí" : "No (se descuenta con el primer pago confirmado)"}</dd>
+        </dl>
         {order.payments.length === 0 ? (
           <p className={styles.emptyState}>Todavía no hay ningún intento de pago registrado.</p>
         ) : (
@@ -226,10 +289,26 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Entrega</h2>
         <dl className={styles.definitionList}>
-          <dt>Método</dt>
-          <dd>{order.shippingMethod}</dd>
+          <dt>Modalidad</dt>
+          <dd>{DELIVERY_LABELS[order.shippingMethod] ?? order.shippingMethod}</dd>
+          {order.meetingPointDetails && (
+            <>
+              <dt>Punto de encuentro</dt>
+              <dd style={{ whiteSpace: "pre-line" }}>{order.meetingPointDetails}</dd>
+            </>
+          )}
           <dt>Dirección</dt>
-          <dd>{order.shippingAddress.address ?? "—"}</dd>
+          <dd>
+            {order.shippingAddress.streetName
+              ? [
+                  `${order.shippingAddress.streetName} ${order.shippingAddress.streetNumber ?? ""}`.trim(),
+                  order.shippingAddress.floor ? `Piso ${order.shippingAddress.floor}` : null,
+                  order.shippingAddress.apartment ? `Depto. ${order.shippingAddress.apartment}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")
+              : (order.shippingAddress.address ?? "—")}
+          </dd>
           <dt>Localidad</dt>
           <dd>{order.shippingAddress.locality ?? "—"}</dd>
           <dt>Provincia</dt>
@@ -283,7 +362,7 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
         ) : (
           <>
             <p className={styles.emptyState}>Todavía no hay ningún envío registrado para este pedido.</p>
-            {(order.status === "payment_confirmed" || order.status === "preparing") && (
+            {(order.status === "payment_confirmed" || order.status === "preparing") && order.shippingMethod !== "meeting_point" && (
               <form action={retryShipmentAction.bind(null, order.id, `/admin/pedidos/${order.id}`)}>
                 <SubmitButton className={styles.transitionButton} pendingText="Creando envío…">
                   Crear envío
@@ -291,6 +370,29 @@ export default async function AdminPedidoDetallePage(props: PageProps<"/admin/pe
               </form>
             )}
           </>
+        )}
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Historial</h2>
+        <ul>
+          {order.history.map((entry, index) => (
+            <li key={index}>
+              {formatDateTime(entry.at)} — {ORDER_STATUS_LABELS[entry.status] ?? entry.status}
+            </li>
+          ))}
+        </ul>
+        <h3 className={styles.sectionTitle}>Emails</h3>
+        {order.emails.length === 0 ? (
+          <p className={styles.muted}>Sin emails registrados.</p>
+        ) : (
+          <ul>
+            {order.emails.map((email, index) => (
+              <li key={index}>
+                {formatDateTime(email.createdAt)} — {email.template} ({email.status === "skipped" ? "omitido: sin proveedor de email" : email.status})
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>

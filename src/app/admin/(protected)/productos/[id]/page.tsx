@@ -1,10 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAdminProductById, getCategoryOptions, getColorOptions, getSizeOptions } from "@/services/admin";
+import {
+  getAdminProductById,
+  getCategoryOptions,
+  getColorOptions,
+  getProductMeasurementRows,
+  getSizeOptions,
+} from "@/services/admin";
 import { ProductForm } from "../ProductForm";
 import { ProductImagesManager } from "../ProductImagesManager";
 import { ProductVariantsManager } from "../ProductVariantsManager";
+import { ProductMeasurementsManager } from "../ProductMeasurementsManager";
 import { updateProductAction } from "../actions";
 import styles from "./page.module.css";
 
@@ -13,11 +20,12 @@ export default async function EditarProductoPage(props: PageProps<"/admin/produc
   const searchParams = await props.searchParams;
 
   const supabase = await createSupabaseServerClient();
-  const [product, categories, sizes, colors] = await Promise.all([
+  const [product, categories, sizes, colors, measurements] = await Promise.all([
     getAdminProductById(supabase, id),
     getCategoryOptions(supabase),
     getSizeOptions(supabase),
     getColorOptions(supabase),
+    getProductMeasurementRows(supabase, id),
   ]);
 
   if (!product) {
@@ -40,6 +48,8 @@ export default async function EditarProductoPage(props: PageProps<"/admin/produc
       <ProductImagesManager productId={product.id} images={product.images} />
 
       <ProductVariantsManager productId={product.id} variants={product.variants} sizes={sizes} colors={colors} />
+
+      <ProductMeasurementsManager productId={product.id} variants={product.variants} rows={measurements} />
     </div>
   );
 }
