@@ -1,6 +1,12 @@
 :root {
-  --background: #ffffff;
+  --background: #f4f1eb;
   --foreground: #171717;
+  --surface: #ffffff;
+  --surface-strong: #171717;
+  --on-strong: #f4f1eb;
+  --muted: #6e6a63;
+  --border: #d8d3ca;
+  --accent: #d4ff3f;
 }
 
 @media (prefers-color-scheme: dark) {
