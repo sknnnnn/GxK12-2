@@ -3,15 +3,16 @@
 // Convención de GXK Core (ver ARCHITECTURE.md): recibe un GxkSupabaseClient
 // ya construido. Usa solo RLS pública: outfits `published`, y filas de
 // outfit_products cuyo producto está publicado y cuya variante (si tiene)
-// está activa. No duplica productos: reutiliza los resúmenes de
-// services/catalog. No incluye administración de outfits (Bloque 4).
+// está activa. No duplica productos: reutiliza el detalle de
+// services/catalog (getProductDetailsByIds). No incluye administración de outfits (Bloque 4).
 
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import type { Tables } from "@/types/database";
-import { buildImageUrl, getPublishedProductsByIds, type CatalogProductSummary } from "@/services/catalog";
+import { buildImageUrl, getProductDetailsByIds, type CatalogProductDetail } from "@/services/catalog";
 
 export type OutfitProduct = {
-  product: CatalogProductSummary;
+  /** Detalle con variantes: permite elegir talle/color y agregar la pieza al carrito. */
+  product: CatalogProductDetail;
   /** Variante concreta fijada por el outfit, o null si referencia el producto completo. */
   variantId: string | null;
 };
@@ -59,7 +60,7 @@ function resolveCoverUrl(supabase: GxkSupabaseClient, cover: string | null): str
 export function assembleOutfits(
   outfits: OutfitRow[],
   links: OutfitProductRow[],
-  productsById: Map<string, CatalogProductSummary>,
+  productsById: Map<string, CatalogProductDetail>,
   coverUrl: (cover: string | null) => string | null,
 ): PublicOutfit[] {
   const sorted = [...outfits].sort(
@@ -123,7 +124,7 @@ export async function getCurrentOutfits(
   if (linksError) throw linksError;
 
   const links = linkRows ?? [];
-  const products = await getPublishedProductsByIds(supabase, [...new Set(links.map((link) => link.product_id))]);
+  const products = await getProductDetailsByIds(supabase, [...new Set(links.map((link) => link.product_id))]);
   const productsById = new Map(products.map((product) => [product.id, product]));
 
   const outfits = assembleOutfits(current, links, productsById, (cover) => resolveCoverUrl(supabase, cover));

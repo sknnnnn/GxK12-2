@@ -156,7 +156,7 @@ export async function getPublishedCategories(supabase: GxkSupabaseClient): Promi
 
 async function queryPublishedProducts(
   supabase: GxkSupabaseClient,
-  options: { categorySlug?: string; featuredOnly?: boolean; ids?: string[]; limit?: number },
+  options: { categorySlug?: string; featuredOnly?: boolean; limit?: number },
 ): Promise<CatalogProductSummary[]> {
   const categoryEmbed = options.categorySlug
     ? "categories!inner ( id, slug, name )"
@@ -176,9 +176,6 @@ async function queryPublishedProducts(
   }
   if (options.featuredOnly) {
     query = query.eq("is_featured", true);
-  }
-  if (options.ids) {
-    query = query.in("id", options.ids);
   }
   if (options.limit !== undefined) {
     query = query.limit(options.limit);
@@ -256,51 +253,28 @@ export async function getNewArrivals(
   return queryPublishedProducts(supabase, { limit });
 }
 
-/**
- * Resumen de productos publicados por id (p. ej. los de un outfit). Los ids
- * que no corresponden a un producto publicado simplemente no aparecen: RLS
- * pública los filtra. No garantiza el orden de `ids`.
- */
-export async function getPublishedProductsByIds(
-  supabase: GxkSupabaseClient,
-  ids: string[],
-): Promise<CatalogProductSummary[]> {
-  if (ids.length === 0) return [];
-  return queryPublishedProducts(supabase, { ids });
-}
+const PRODUCT_DETAIL_SELECT =
+  "id, slug, name, description, price, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )";
 
 /**
- * Producto individual publicado, con imágenes, variantes activas y los
- * talles/colores derivados de esas variantes.
- *
- * Devuelve `null` tanto si el producto no existe como si existe pero no
- * está publicado (draft/hidden/discontinued): la policy RLS pública sobre
- * `products` ya filtra por status = 'published', así que desde el storefront
- * público ambos casos son indistinguibles por diseño — no se debe revelar
- * si un producto oculto existe. El caller trata `null` como "no encontrado".
+ * Arma el detalle (imágenes, variantes, talles y colores derivados de sus
+ * variantes) de una o más filas de producto ya leídas, con un único
+ * conjunto de consultas de variantes/talles/colores para todas (sin N+1).
+ * Lo comparten getProductBySlug y getProductDetailsByIds.
  */
-export async function getProductBySlug(
+async function buildProductDetails(
   supabase: GxkSupabaseClient,
-  slug: string,
-): Promise<CatalogProductDetail | null> {
-  const { data: product, error } = await supabase
-    .from("products")
-    .select(
-      "id, slug, name, description, price, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )",
-    )
-    .eq("slug", slug)
-    .eq("status", "published")
-    .order("sort_order", { referencedTable: "product_images", ascending: true })
-    .maybeSingle()
-    .returns<ProductDetailRow>();
-
-  if (error) throw error;
-  if (!product) return null;
+  products: ProductDetailRow[],
+): Promise<CatalogProductDetail[]> {
+  if (products.length === 0) return [];
 
   const { data: variantRows, error: variantsError } = await supabase
     .from("storefront_product_variants")
     .select("id, product_id, size_id, color_id, sku, price_override, in_stock")
-    .eq("product_id", product.id)
+    .in(
+      "product_id",
+      products.map((p) => p.id),
+    )
     .returns<VariantRow[]>();
 
   if (variantsError) throw variantsError;
@@ -329,38 +303,100 @@ export async function getProductBySlug(
   if (sizesRes.error) throw sizesRes.error;
   if (colorsRes.error) throw colorsRes.error;
 
-  const sizesById = new Map((sizesRes.data ?? []).map((row) => [row.id, row]));
-  const colorsById = new Map((colorsRes.data ?? []).map((row) => [row.id, row]));
+  // Se conserva el orden de la consulta (por nombre) al filtrar por producto.
+  const allSizes = sizesRes.data ?? [];
+  const allColors = colorsRes.data ?? [];
+  const sizesById = new Map(allSizes.map((row) => [row.id, row]));
+  const colorsById = new Map(allColors.map((row) => [row.id, row]));
 
-  const variants: CatalogVariant[] = validVariants.map((row) => ({
-    id: row.id,
-    sku: row.sku,
-    priceOverride: row.price_override,
-    inStock: row.in_stock,
-    size: row.size_id && sizesById.has(row.size_id) ? { id: row.size_id, name: sizesById.get(row.size_id)!.name } : null,
-    color:
-      row.color_id && colorsById.has(row.color_id)
-        ? {
-            id: row.color_id,
-            name: colorsById.get(row.color_id)!.name,
-            hexCode: colorsById.get(row.color_id)!.hex_code,
-          }
-        : null,
-  }));
+  return products.map((product) => {
+    const productVariants = validVariants.filter((v) => v.product_id === product.id);
 
-  const images = toImages(supabase, product.product_images ?? []);
+    const variants: CatalogVariant[] = productVariants.map((row) => ({
+      id: row.id,
+      sku: row.sku,
+      priceOverride: row.price_override,
+      inStock: row.in_stock,
+      size: row.size_id && sizesById.has(row.size_id) ? { id: row.size_id, name: sizesById.get(row.size_id)!.name } : null,
+      color:
+        row.color_id && colorsById.has(row.color_id)
+          ? {
+              id: row.color_id,
+              name: colorsById.get(row.color_id)!.name,
+              hexCode: colorsById.get(row.color_id)!.hex_code,
+            }
+          : null,
+    }));
 
-  return {
-    id: product.id,
-    slug: product.slug,
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    category: toCategory(product.categories),
-    images,
-    variants,
-    sizes: [...sizesById.values()].map((row) => ({ id: row.id, name: row.name })),
-    colors: [...colorsById.values()].map((row) => ({ id: row.id, name: row.name, hexCode: row.hex_code })),
-    inStock: variants.some((v) => v.inStock),
-  };
+    const productSizeIds = new Set(productVariants.map((v) => v.size_id));
+    const productColorIds = new Set(productVariants.map((v) => v.color_id));
+
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      category: toCategory(product.categories),
+      images: toImages(supabase, product.product_images ?? []),
+      variants,
+      sizes: allSizes.filter((row) => productSizeIds.has(row.id)).map((row) => ({ id: row.id, name: row.name })),
+      colors: allColors
+        .filter((row) => productColorIds.has(row.id))
+        .map((row) => ({ id: row.id, name: row.name, hexCode: row.hex_code })),
+      inStock: variants.some((v) => v.inStock),
+    };
+  });
+}
+
+/**
+ * Producto individual publicado, con imágenes, variantes activas y los
+ * talles/colores derivados de esas variantes.
+ *
+ * Devuelve `null` tanto si el producto no existe como si existe pero no
+ * está publicado (draft/hidden/discontinued): la policy RLS pública sobre
+ * `products` ya filtra por status = 'published', así que desde el storefront
+ * público ambos casos son indistinguibles por diseño — no se debe revelar
+ * si un producto oculto existe. El caller trata `null` como "no encontrado".
+ */
+export async function getProductBySlug(
+  supabase: GxkSupabaseClient,
+  slug: string,
+): Promise<CatalogProductDetail | null> {
+  const { data: product, error } = await supabase
+    .from("products")
+    .select(PRODUCT_DETAIL_SELECT)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .order("sort_order", { referencedTable: "product_images", ascending: true })
+    .maybeSingle()
+    .returns<ProductDetailRow>();
+
+  if (error) throw error;
+  if (!product) return null;
+
+  return (await buildProductDetails(supabase, [product]))[0];
+}
+
+/**
+ * Detalle (con variantes) de varios productos publicados por id, en un
+ * único conjunto de consultas. Los ids no publicados no aparecen (RLS). No
+ * garantiza el orden de `ids`.
+ */
+export async function getProductDetailsByIds(
+  supabase: GxkSupabaseClient,
+  ids: string[],
+): Promise<CatalogProductDetail[]> {
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_DETAIL_SELECT)
+    .in("id", ids)
+    .eq("status", "published")
+    .order("sort_order", { referencedTable: "product_images", ascending: true })
+    .returns<ProductDetailRow[]>();
+
+  if (error) throw error;
+  return buildProductDetails(supabase, data ?? []);
 }

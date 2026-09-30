@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCart } from "@/lib/cart/CartProvider";
+import { cartLineFromVariant } from "@/lib/cart/lines";
 import type { CatalogProductDetail, CatalogVariant } from "@/services/catalog";
 import { VariantSelector } from "./VariantSelector";
 import styles from "./AddToCartButton.module.css";
@@ -28,17 +29,7 @@ export function AddToCartButton({ product }: { product: CatalogProductDetail }) 
   function handleAdd() {
     if (!selectedVariant || !selectedVariant.inStock) return;
 
-    addItem({
-      variantId: selectedVariant.id,
-      productId: product.id,
-      productSlug: product.slug,
-      productName: product.name,
-      size: selectedVariant.size?.name ?? null,
-      color: selectedVariant.color?.name ?? null,
-      sku: selectedVariant.sku,
-      unitPrice: selectedVariant.priceOverride ?? product.price,
-      imageUrl: product.images[0]?.url ?? null,
-    });
+    addItem(cartLineFromVariant(product, selectedVariant));
 
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1500);

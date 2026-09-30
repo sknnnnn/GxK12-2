@@ -1,17 +1,19 @@
+import Link from "next/link";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import type { CatalogProductSummary } from "@/services/catalog";
 import styles from "./sections.module.css";
 
-// Cantidad provisoria de "Nuevos ingresos" en Home: no está definida en la
-// Bible ni en el Roadmap; se ajusta con el diseño de Figma.
-export const NEW_ARRIVALS_LIMIT = 8;
-
 // Presentacional: recibe los productos ya cargados por la página
-// (services/catalog getNewArrivals). Nombre de sección según Bible §15.
+// (services/catalog getNewArrivals; la cantidad la define
+// lib/storefront/content HOME_LIMITS). Nombre de sección según Bible §15.
+// Cada card lleva al producto; "Ver todo" al catálogo (VER TODO, Bible §11).
 export function NewArrivalsSection({ products }: { products: CatalogProductSummary[] }) {
   return (
-    <section className={styles.section} aria-labelledby="home-nuevos-ingresos">
-      <h2 id="home-nuevos-ingresos">Nuevos ingresos</h2>
+    <section id="nuevos-ingresos" className={styles.section} aria-labelledby="home-nuevos-ingresos">
+      <div className={styles.sectionHeader}>
+        <h2 id="home-nuevos-ingresos">Nuevos ingresos</h2>
+        <Link href="/catalogo">Ver todo</Link>
+      </div>
       {products.length === 0 ? (
         <p className={styles.empty}>Todavía no hay productos publicados.</p>
       ) : (

@@ -5,7 +5,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createFakeSupabase } from "./support/fakeSupabase";
-import { getNewArrivals } from "@/services/catalog";
+import { getNewArrivals, getProductDetailsByIds } from "@/services/catalog";
 import { getCurrentOutfits, isOutfitCurrent } from "@/services/outfits";
 
 const NOW = new Date("2026-10-01T12:00:00Z");
@@ -21,6 +21,10 @@ function product(id: string, status = "published") {
     categories: null,
     product_images: [],
   };
+}
+
+function variantRow(id: string, productId: string, inStock: boolean, sizeId: string | null = null, colorId: string | null = null) {
+  return { id, product_id: productId, size_id: sizeId, color_id: colorId, sku: `SKU-${id}`, price_override: null, in_stock: inStock };
 }
 
 function outfit(id: string, overrides: Record<string, unknown> = {}) {
@@ -104,7 +108,7 @@ describe("getCurrentOutfits", () => {
       ],
       outfit_products: ["late", "first-old", "first-new", "future", "expired", "draft"].map((id) => link(id, "p1")),
       products: [product("p1")],
-      storefront_product_variants: [{ product_id: "p1", in_stock: true }],
+      storefront_product_variants: [variantRow("v1", "p1", true)],
     });
     const result = await getCurrentOutfits(client, { now: NOW });
     assert.deepEqual(
@@ -148,5 +152,37 @@ describe("getCurrentOutfits", () => {
     assert.equal(result.length, 1);
     assert.equal(result[0].id, "o1");
     assert.equal(result[0].coverImageUrl, null);
+  });
+});
+
+describe("getProductDetailsByIds", () => {
+  it("arma detalle con variantes, talles y colores por producto en un solo lote", async () => {
+    const { client } = createFakeSupabase({
+      products: [product("p1"), product("p2"), product("hidden", "draft")],
+      storefront_product_variants: [
+        variantRow("v1", "p1", true, "s-m", "c-black"),
+        variantRow("v2", "p1", false, "s-l", "c-black"),
+        variantRow("v3", "p2", true, "s-l", null),
+      ],
+      sizes: [
+        { id: "s-m", name: "M" },
+        { id: "s-l", name: "L" },
+      ],
+      colors: [{ id: "c-black", name: "Negro", hex_code: "#000000" }],
+    });
+    const details = await getProductDetailsByIds(client, ["p1", "p2", "hidden"]);
+    const byId = new Map(details.map((d) => [d.id, d]));
+    assert.equal(details.length, 2);
+    assert.deepEqual(byId.get("p1")?.variants.map((v) => v.id), ["v1", "v2"]);
+    assert.deepEqual(byId.get("p1")?.sizes.map((s) => s.name), ["M", "L"]);
+    assert.deepEqual(byId.get("p1")?.colors.map((c) => c.name), ["Negro"]);
+    assert.equal(byId.get("p1")?.inStock, true);
+    assert.deepEqual(byId.get("p2")?.sizes.map((s) => s.name), ["L"]);
+    assert.deepEqual(byId.get("p2")?.colors, []);
+  });
+
+  it("sin ids devuelve vacío", async () => {
+    const { client } = createFakeSupabase({});
+    assert.deepEqual(await getProductDetailsByIds(client, []), []);
   });
 });

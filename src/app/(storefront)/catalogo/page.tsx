@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublishedCategories, getPublishedProducts } from "@/services/catalog";
 import { ProductCard } from "@/components/storefront/ProductCard";
-import { CartLink } from "@/components/storefront/CartLink";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
@@ -25,7 +24,6 @@ export default async function CatalogoPage({ searchParams }: PageProps<"/catalog
     <main className={styles.main}>
       <div className={styles.header}>
         <h1>Catálogo</h1>
-        <CartLink />
       </div>
 
       {categories.length > 0 && (
