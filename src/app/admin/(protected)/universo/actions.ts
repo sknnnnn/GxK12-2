@@ -41,6 +41,7 @@ function parseEntry(formData: FormData): { ok: true; input: UniverseEntryInput }
   const videoUrl = String(formData.get("videoUrl") ?? "").trim();
   const sortOrder = Number(formData.get("sortOrder") ?? 0);
   if (!title || !slug) return { ok: false, error: "La entrada necesita un título." };
+  if (slug === "aventuras") return { ok: false, error: "El slug \"aventuras\" está reservado." };
   if (!(UNIVERSE_KINDS as readonly string[]).includes(kind)) return { ok: false, error: "Tipo inválido." };
   if (!(CONTENT_STATUSES as readonly string[]).includes(status)) return { ok: false, error: "Estado inválido." };
   if (videoUrl && !/^https:\/\/\S+$/.test(videoUrl)) return { ok: false, error: "El video debe ser un enlace https://." };

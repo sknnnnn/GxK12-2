@@ -145,3 +145,14 @@ describe("medidas y WhatsApp", () => {
     assert.ok(buildWhatsAppHref("5491100000000", "Hola").startsWith("https://wa.me/5491100000000?text=Hola"));
   });
 });
+
+import { isEventArchived } from "@/services/universe";
+
+describe("Universo", () => {
+  it("un evento pasa a archivo al terminar (o al empezar, si no tiene fin)", () => {
+    const now = new Date("2026-10-10T12:00:00Z");
+    assert.equal(isEventArchived({ startsAt: "2026-10-10T10:00:00Z", endsAt: "2026-10-10T20:00:00Z" }, now), false);
+    assert.equal(isEventArchived({ startsAt: "2026-10-10T10:00:00Z", endsAt: null }, now), true);
+    assert.equal(isEventArchived({ startsAt: "2026-10-11T10:00:00Z", endsAt: null }, now), false);
+  });
+});

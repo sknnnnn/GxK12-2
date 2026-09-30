@@ -1,7 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getNewArrivals } from "@/services/catalog";
+import { buildImageUrl, getNewArrivals } from "@/services/catalog";
 import { getCurrentOutfits } from "@/services/outfits";
-import { HERO_MEDIA, HOME_LIMITS } from "@/lib/storefront/content";
+import { getAdventureSeasons, getNextEvent, getUniverseEntries } from "@/services/universe";
+import { getSiteContent } from "@/services/site";
+import { HOME_LIMITS } from "@/lib/storefront/content";
 import { HeroSection } from "@/components/storefront/home/HeroSection";
 import { NewArrivalsSection } from "@/components/storefront/home/NewArrivalsSection";
 import { OutfitsSection } from "@/components/storefront/home/OutfitsSection";
@@ -11,29 +13,40 @@ import { EventSection } from "@/components/storefront/home/EventSection";
 import { MembersSection } from "@/components/storefront/home/MembersSection";
 import styles from "./page.module.css";
 
-// Home: composición de secciones independientes en el orden de la Bible §15.
-// Header y footer los aporta el layout del Storefront. Datos reales de
-// Supabase vía services/*; contenido/parámetros en lib/storefront/content.
-export default async function HomePage() {
+// Home: la puerta de la Casa GXK (Bible §15), en su orden conceptual:
+// hero, nuevos ingresos, ideas de outfits, Universo, G & K, próximo evento
+// (si existe) y Members Only. Datos reales vía services/*; textos e imagen
+// del hero desde Admin > Contenido.
+export default async function HomePage({ searchParams }: PageProps<"/">) {
+  const { estilo } = await searchParams;
   const supabase = await createSupabaseServerClient();
-  const [newArrivals, outfits] = await Promise.all([
+  const [newArrivals, allOutfits, content, universe, seasons, nextEvent] = await Promise.all([
     getNewArrivals(supabase, { limit: HOME_LIMITS.newArrivals }),
     getCurrentOutfits(supabase, { limit: HOME_LIMITS.outfits }),
+    getSiteContent(supabase),
+    getUniverseEntries(supabase, { limit: HOME_LIMITS.universo, membersOnly: false }),
+    getAdventureSeasons(supabase),
+    getNextEvent(supabase),
   ]);
 
-  // DEPENDENCIA (Bloque 5): no existe modelo de eventos todavía. Cuando
-  // exista services/events, acá se carga el próximo evento; null = no hay.
-  const upcomingEvent = null;
+  // Estilos de Ideas de outfits (Bible §12): se filtra sobre los vigentes.
+  const outfitStyles = [...new Set(allOutfits.map((outfit) => outfit.style).filter((style): style is string => Boolean(style)))];
+  const activeStyle = typeof estilo === "string" && outfitStyles.includes(estilo) ? estilo : null;
+  const outfits = activeStyle ? allOutfits.filter((outfit) => outfit.style === activeStyle) : allOutfits;
+
+  const heroMedia = content.heroImagePath
+    ? { imageUrl: buildImageUrl(supabase, content.heroImagePath), alt: content.heroImageAlt ?? "" }
+    : null;
 
   return (
     <main className={styles.main}>
-      <HeroSection media={HERO_MEDIA} />
+      <HeroSection media={heroMedia} />
       <NewArrivalsSection products={newArrivals} />
-      <OutfitsSection outfits={outfits} />
-      <UniversoSection />
-      <GKSection />
-      <EventSection event={upcomingEvent} />
-      <MembersSection />
+      <OutfitsSection outfits={outfits} styles={outfitStyles} activeStyle={activeStyle} />
+      <UniversoSection entries={universe} description={content.universoDescription} />
+      <GKSection seasons={seasons} description={content.gkDescription} />
+      <EventSection event={nextEvent} />
+      <MembersSection description={content.membersDescription} />
     </main>
   );
 }

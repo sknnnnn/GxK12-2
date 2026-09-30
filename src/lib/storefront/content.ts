@@ -15,38 +15,32 @@ export const HERO_ENTRIES = [
   { key: "explorar", label: "QUIERO EXPLORAR", href: "/#outfits" },
 ] as const;
 
-/**
- * Foto/imagen del hero. PENDIENTE DE CONTENIDO: no existe campaña ni
- * fotografía definida. Con `null` el hero no muestra imagen; al cargar
- * `{ imageUrl, alt }` se renderiza sin tocar el componente.
- */
-export const HERO_MEDIA: { imageUrl: string; alt: string } | null = null;
-
 // Parámetros provisorios: la documentación no los define.
 export const HOME_LIMITS = {
   /** Cantidad de "Nuevos ingresos" en Home. PROVISORIO: no definido en Bible/Roadmap. */
   newArrivals: 8,
   /** Outfits en Home. PROVISORIO: no definido; `undefined` = todos los vigentes. */
   outfits: undefined as number | undefined,
+  /** Entradas del Universo en Home. PROVISORIO: no definido en Bible/Roadmap. */
+  universo: 3,
 };
 
-// Secciones de entrada de Home sin datos propios todavía. `description`
-// queda en null hasta que GXK defina el texto (no se inventa copy).
+// Secciones de entrada de Home. El texto de cada una lo escribe GXK en
+// Admin > Contenido (site_settings); sin texto, no se muestra ninguno.
 export type HomeEntrySectionConfig = {
   id: string;
   title: string;
-  description: string | null;
   entryKeys: string[];
 };
 
 export const HOME_ENTRY_SECTIONS = {
   // Bible §26: "UNIVERSO GXK 12:2" — archivo creativo (Bloque 5).
-  universo: { id: "universo", title: "Universo", description: null, entryKeys: ["universo"] },
+  universo: { id: "universo", title: "Universo", entryKeys: ["universo"] },
   // Bible §8/§28: G y K son anfitriones y narradores; sus historias viven en
   // Las Aventuras de G & K (Universo, Bloque 5).
-  gk: { id: "gk", title: "G & K", description: null, entryKeys: ["aventuras"] },
+  gk: { id: "gk", title: "G & K", entryKeys: ["aventuras"] },
   // Bible §23/§24: Members Only se accede desde FAMILIA GxK (Bloque 6).
-  members: { id: "members", title: "Members Only", description: null, entryKeys: ["familia"] },
+  members: { id: "members", title: "Members Only", entryKeys: ["familia"] },
 } satisfies Record<string, HomeEntrySectionConfig>;
 
 // Información de compra definida literalmente por la Bible. Se muestra en la

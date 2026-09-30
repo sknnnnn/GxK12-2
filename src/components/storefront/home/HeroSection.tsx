@@ -2,10 +2,9 @@ import Link from "next/link";
 import { BRAND_NAME, HERO_ENTRIES, SLOGAN } from "@/lib/storefront/content";
 import styles from "./sections.module.css";
 
-// Hero editorial (Bible §15, punto 1). Funcional: marca + slogan (Bible §1) y
-// las dos entradas de "Dos velocidades" (Bible §13). `media` es el slot de
-// la imagen de campaña: sin foto definida (lib/storefront/content HERO_MEDIA)
-// no se muestra nada. No hay copy comercial ni campaña inventados.
+// Hero editorial (Bible §15, punto 1): imagen que carga GXK en Admin >
+// Contenido (sin imagen no se muestra ninguna), marca + slogan (Bible §1) y
+// las dos entradas de "Dos velocidades" (Bible §13).
 export function HeroSection({ media }: { media: { imageUrl: string; alt: string } | null }) {
   return (
     <section className={styles.hero} aria-labelledby="home-hero">

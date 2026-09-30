@@ -22,6 +22,8 @@ export type PublicOutfit = {
   slug: string;
   name: string;
   description: string | null;
+  /** Estilo (Bible §12: street, formal, japanese, y2k, workwear) o null. */
+  style: string | null;
   /** URL resuelta de la portada, o null si el outfit no tiene. */
   coverImageUrl: string | null;
   startsAt: string | null;
@@ -32,7 +34,7 @@ export type PublicOutfit = {
 type OutfitRow = Pick<
   Tables<"outfits">,
   "id" | "slug" | "name" | "description" | "cover_image" | "starts_at" | "ends_at" | "sort_order" | "created_at"
->;
+> & { style?: string | null };
 type OutfitProductRow = Pick<Tables<"outfit_products">, "outfit_id" | "product_id" | "variant_id" | "sort_order">;
 
 /** Vigente = publicado (lo garantiza RLS) y `now` dentro de [starts_at, ends_at); fechas null = sin límite. */
@@ -83,6 +85,7 @@ export function assembleOutfits(
       slug: outfit.slug,
       name: outfit.name,
       description: outfit.description,
+      style: outfit.style ?? null,
       coverImageUrl: coverUrl(outfit.cover_image),
       startsAt: outfit.starts_at,
       endsAt: outfit.ends_at,
@@ -99,15 +102,18 @@ export function assembleOutfits(
  */
 export async function getCurrentOutfits(
   supabase: GxkSupabaseClient,
-  options?: { limit?: number; now?: Date },
+  options?: { limit?: number; now?: Date; ids?: string[]; style?: string },
 ): Promise<PublicOutfit[]> {
   const now = options?.now ?? new Date();
+  if (options?.ids && options.ids.length === 0) return [];
 
-  const { data: outfitRows, error } = await supabase
+  let query = supabase
     .from("outfits")
-    .select("id, slug, name, description, cover_image, starts_at, ends_at, sort_order, created_at")
-    .eq("status", "published")
-    .returns<OutfitRow[]>();
+    .select("id, slug, name, description, style, cover_image, starts_at, ends_at, sort_order, created_at")
+    .eq("status", "published");
+  if (options?.ids) query = query.in("id", options.ids);
+  if (options?.style) query = query.eq("style", options.style);
+  const { data: outfitRows, error } = await query.returns<OutfitRow[]>();
   if (error) throw error;
 
   const current = (outfitRows ?? []).filter((outfit) => isOutfitCurrent(outfit, now));
