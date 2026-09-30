@@ -156,7 +156,7 @@ export async function getPublishedCategories(supabase: GxkSupabaseClient): Promi
 
 async function queryPublishedProducts(
   supabase: GxkSupabaseClient,
-  options: { categorySlug?: string; featuredOnly?: boolean },
+  options: { categorySlug?: string; featuredOnly?: boolean; ids?: string[]; limit?: number },
 ): Promise<CatalogProductSummary[]> {
   const categoryEmbed = options.categorySlug
     ? "categories!inner ( id, slug, name )"
@@ -176,6 +176,12 @@ async function queryPublishedProducts(
   }
   if (options.featuredOnly) {
     query = query.eq("is_featured", true);
+  }
+  if (options.ids) {
+    query = query.in("id", options.ids);
+  }
+  if (options.limit !== undefined) {
+    query = query.limit(options.limit);
   }
 
   const { data, error } = await query.returns<ProductListRow[]>();
@@ -234,6 +240,33 @@ export async function getPublishedProducts(
  */
 export async function getFeaturedProducts(supabase: GxkSupabaseClient): Promise<CatalogProductSummary[]> {
   return queryPublishedProducts(supabase, { featuredOnly: true });
+}
+
+/**
+ * Últimos productos publicados, del más reciente al más antiguo según
+ * `products.created_at`. `limit` es obligatorio y se normaliza a entero
+ * positivo: con 0, negativo o NaN devuelve `[]` (estado vacío) sin consultar.
+ */
+export async function getNewArrivals(
+  supabase: GxkSupabaseClient,
+  options: { limit: number },
+): Promise<CatalogProductSummary[]> {
+  const limit = Math.floor(options.limit);
+  if (!Number.isFinite(limit) || limit < 1) return [];
+  return queryPublishedProducts(supabase, { limit });
+}
+
+/**
+ * Resumen de productos publicados por id (p. ej. los de un outfit). Los ids
+ * que no corresponden a un producto publicado simplemente no aparecen: RLS
+ * pública los filtra. No garantiza el orden de `ids`.
+ */
+export async function getPublishedProductsByIds(
+  supabase: GxkSupabaseClient,
+  ids: string[],
+): Promise<CatalogProductSummary[]> {
+  if (ids.length === 0) return [];
+  return queryPublishedProducts(supabase, { ids });
 }
 
 /**
