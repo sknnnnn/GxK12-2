@@ -1,65 +1,46 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getFeaturedProducts, getPublishedCategories } from "@/services/catalog";
-import { ProductCard } from "@/components/storefront/ProductCard";
+import { getNewArrivals } from "@/services/catalog";
+import { getCurrentOutfits } from "@/services/outfits";
 import { CartLink } from "@/components/storefront/CartLink";
+import { HeroSection } from "@/components/storefront/home/HeroSection";
+import { NEW_ARRIVALS_LIMIT, NewArrivalsSection } from "@/components/storefront/home/NewArrivalsSection";
+import { OutfitsSection } from "@/components/storefront/home/OutfitsSection";
+import { UniversoSection } from "@/components/storefront/home/UniversoSection";
+import { GKSection } from "@/components/storefront/home/GKSection";
+import { EventSection } from "@/components/storefront/home/EventSection";
+import { MembersSection } from "@/components/storefront/home/MembersSection";
 import styles from "./page.module.css";
 
-// Home: solo secciones respaldadas por datos reales y por servicios de
-// catálogo existentes — categorías activas y productos publicados marcados
-// como destacados (is_featured, editable desde Admin > Productos). La
-// disponibilidad ("Sin stock") la resuelve ProductCard desde inStock.
+// Home: composición de secciones independientes en el orden conceptual de la
+// Bible §15. Cada sección recibe sus datos ya cargados (datos reales de
+// Supabase vía services/*). Las secciones sin contenido o sin bloque todavía
+// (Hero, Universo, G & K, Evento, Members Only) no renderizan nada: ver cada
+// componente. Header/footer definitivos y estilos finales: Figma (Bloque 1).
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient();
-  const [categories, featured] = await Promise.all([
-    getPublishedCategories(supabase),
-    getFeaturedProducts(supabase),
+  const [newArrivals, outfits] = await Promise.all([
+    getNewArrivals(supabase, { limit: NEW_ARRIVALS_LIMIT }),
+    getCurrentOutfits(supabase),
   ]);
 
   return (
     <main className={styles.main}>
       <div className={styles.header}>
         <h1>GXK</h1>
-        <CartLink />
+        <nav className={styles.headerNav} aria-label="Acceso rápido">
+          <Link href="/catalogo">Catálogo</Link>
+          <CartLink />
+        </nav>
       </div>
 
-      {categories.length > 0 && (
-        <section className={styles.section} aria-labelledby="home-categorias">
-          <div className={styles.sectionHeader}>
-            <h2 id="home-categorias">Categorías</h2>
-            <Link href="/catalogo">Ver catálogo completo</Link>
-          </div>
-          <nav className={styles.categoryNav} aria-label="Categorías">
-            {categories.map((category) => (
-              <Link
-                key={category.id}
-                href={`/catalogo?categoria=${category.slug}`}
-                className={styles.categoryLink}
-              >
-                {category.name}
-              </Link>
-            ))}
-          </nav>
-        </section>
-      )}
-
-      <section className={styles.section} aria-labelledby="home-destacados">
-        <div className={styles.sectionHeader}>
-          <h2 id="home-destacados">Destacados</h2>
-          {categories.length === 0 && <Link href="/catalogo">Ver catálogo completo</Link>}
-        </div>
-        {featured.length === 0 ? (
-          <p className={styles.empty}>
-            Todavía no hay productos destacados. <Link href="/catalogo">Ver catálogo</Link>
-          </p>
-        ) : (
-          <div className={styles.grid}>
-            {featured.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        )}
-      </section>
+      <HeroSection />
+      <NewArrivalsSection products={newArrivals} />
+      <OutfitsSection outfits={outfits} />
+      <UniversoSection />
+      <GKSection />
+      <EventSection />
+      <MembersSection />
     </main>
   );
 }

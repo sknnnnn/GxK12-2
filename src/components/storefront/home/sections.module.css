@@ -1,0 +1,57 @@
+/* Estilos neutros y provisorios de las secciones de Home. La dirección
+   visual definitiva sale de Figma (Roadmap, Bloque 1): no decidir acá. */
+.section {
+  margin-top: 2rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.empty {
+  color: #666;
+  padding: 1rem 0;
+}
+
+.outfit {
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.outfitCover,
+.outfitCoverPlaceholder {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  background: #f0f0f0;
+}
+
+.outfitInfo {
+  padding: 0.75rem 0.9rem 1rem;
+}
+
+.outfitName {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.outfitDescription {
+  margin: 0.35rem 0 0;
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.outfitProducts {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
