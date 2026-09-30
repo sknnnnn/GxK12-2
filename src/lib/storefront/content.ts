@@ -48,3 +48,31 @@ export const HOME_ENTRY_SECTIONS = {
   // Bible §23/§24: Members Only se accede desde FAMILIA GxK (Bloque 6).
   members: { id: "members", title: "Members Only", description: null, entryKeys: ["familia"] },
 } satisfies Record<string, HomeEntrySectionConfig>;
+
+// Información de compra definida literalmente por la Bible. Se muestra en la
+// ficha de producto (Bible §16: envíos, cambios/devoluciones) y en Help.
+export const DELIVERY_INFO = {
+  // Bible §19.
+  methods: ["Andreani", "Correo Argentino", "Punto de encuentro"],
+  rules: ["Envío: pago completo.", "Punto de encuentro: posibilidad de 50% reserva + 50% entrega."],
+};
+
+export const EXCHANGE_POLICY = {
+  // Bible §21.
+  conditions: ["10 días desde recepción.", "Sin uso.", "Con etiquetas.", "En perfecto estado."],
+  shippingCosts: [
+    "Error de GXK / defecto: GXK cubre el envío.",
+    "Cambio de talle solicitado por el comprador: el comprador cubre ambos envíos.",
+  ],
+};
+
+// Bible §20: cada modelo tiene medidas propias; explicar cómo comparar con
+// una prenda propia; dudas por WhatsApp.
+export const SIZE_GUIDE = {
+  intro: "Cada modelo tiene medidas propias: la M de una prenda no necesariamente equivale a la M de otra.",
+  howToCompare:
+    "Para comparar, extendé sobre una superficie plana una prenda tuya que te quede bien, medila y compará esos centímetros con la tabla.",
+};
+
+// Bible §18.
+export const PAYMENT_INFO = ["Mercado Pago", "Tarjetas", "Cuotas cuando corresponda según Mercado Pago", "Efectivo"];

@@ -1,14 +1,21 @@
-import { CONTACT, FOOTER_LINKS, MENU_LINKS, SOCIAL_LINKS } from "@/lib/storefront/navigation";
+import { FOOTER_LINKS, MENU_LINKS } from "@/lib/storefront/navigation";
 import { BRAND_NAME } from "@/lib/storefront/content";
+import { buildWhatsAppHref, GENERAL_INQUIRY_MESSAGE } from "@/lib/storefront/whatsapp";
+import type { SiteSettings } from "@/services/site";
 import { SiteLinkItem } from "./SiteLinkItem";
 import styles from "./SiteFooter.module.css";
 
-// Footer del Storefront: estructura funcional. Solo muestra datos definidos:
-// redes y contacto (WhatsApp) se renderizan únicamente si su URL existe en
-// lib/storefront/navigation; hoy no están definidos y no se inventan. Textos
-// legales: no definidos, sin bloque asignado.
-export function SiteFooter() {
-  const social = SOCIAL_LINKS.filter((link): link is typeof link & { href: string } => link.href !== null);
+// Footer del Storefront: estructura funcional. Redes (Bible §35: solo
+// enlaces, sin feeds) y WhatsApp (Bible §22) salen de site_settings, que el
+// admin edita; si no están cargados no se muestran -- no se inventan.
+export function SiteFooter({ settings }: { settings: SiteSettings }) {
+  const external = [
+    settings.instagramUrl ? { key: "instagram", label: "Instagram", href: settings.instagramUrl } : null,
+    settings.tiktokUrl ? { key: "tiktok", label: "TikTok", href: settings.tiktokUrl } : null,
+    settings.whatsappNumber
+      ? { key: "whatsapp", label: "WhatsApp", href: buildWhatsAppHref(settings.whatsappNumber, GENERAL_INQUIRY_MESSAGE) }
+      : null,
+  ].filter((link): link is { key: string; label: string; href: string } => link !== null);
 
   return (
     <footer className={styles.footer}>
@@ -21,18 +28,13 @@ export function SiteFooter() {
           <SiteLinkItem key={link.key} link={link} />
         ))}
       </nav>
-      {(social.length > 0 || CONTACT.whatsappHref) && (
+      {external.length > 0 && (
         <div className={styles.group}>
-          {social.map((link) => (
+          {external.map((link) => (
             <a key={link.key} href={link.href} target="_blank" rel="noopener noreferrer">
               {link.label}
             </a>
           ))}
-          {CONTACT.whatsappHref && (
-            <a href={CONTACT.whatsappHref} target="_blank" rel="noopener noreferrer">
-              WhatsApp
-            </a>
-          )}
         </div>
       )}
     </footer>

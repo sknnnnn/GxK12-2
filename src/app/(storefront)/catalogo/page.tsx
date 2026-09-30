@@ -1,61 +1,27 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getPublishedCategories, getPublishedProducts } from "@/services/catalog";
-import { ProductCard } from "@/components/storefront/ProductCard";
-import styles from "./page.module.css";
+import { NEW_CATEGORY_SLUG, getCatalog, getPublishedCategories, parseCatalogParams } from "@/services/catalog";
+import { HOME_LIMITS } from "@/lib/storefront/content";
+import { CatalogView } from "@/components/storefront/catalog/CatalogView";
 
 export const metadata: Metadata = {
-  title: "Catálogo — GXK",
+  title: "Tienda — GXK",
 };
 
+// TIENDA (Bible §11/§14). NUEVO es el mismo conjunto que "Nuevos ingresos"
+// de Home (HOME_LIMITS.newArrivals).
 export default async function CatalogoPage({ searchParams }: PageProps<"/catalogo">) {
-  const resolvedSearchParams = await searchParams;
-  const categoriaParam = resolvedSearchParams.categoria;
-  const categorySlug = typeof categoriaParam === "string" ? categoriaParam : undefined;
-
+  const query = parseCatalogParams(await searchParams);
   const supabase = await createSupabaseServerClient();
-  const [categories, products] = await Promise.all([
+  const [categories, result] = await Promise.all([
     getPublishedCategories(supabase),
-    getPublishedProducts(supabase, { categorySlug }),
+    getCatalog(supabase, query, { newestLimit: HOME_LIMITS.newArrivals }),
   ]);
 
-  return (
-    <main className={styles.main}>
-      <div className={styles.header}>
-        <h1>Catálogo</h1>
-      </div>
+  const title =
+    query.category === NEW_CATEGORY_SLUG
+      ? "NUEVO"
+      : (categories.find((category) => category.slug === query.category)?.name ?? "TIENDA");
 
-      {categories.length > 0 && (
-        <nav className={styles.categoryNav} aria-label="Filtrar por categoría">
-          <Link href="/catalogo" className={!categorySlug ? styles.categoryActive : styles.categoryLink}>
-            Todas
-          </Link>
-          {categories.map((category) => (
-            <Link
-              key={category.id}
-              href={`/catalogo?categoria=${category.slug}`}
-              className={categorySlug === category.slug ? styles.categoryActive : styles.categoryLink}
-            >
-              {category.name}
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      {products.length === 0 ? (
-        <p className={styles.empty}>
-          {categorySlug
-            ? "No hay productos publicados en esta categoría todavía."
-            : "Todavía no hay productos publicados."}
-        </p>
-      ) : (
-        <div className={styles.grid}>
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      )}
-    </main>
-  );
+  return <CatalogView basePath="/catalogo" title={title} query={query} result={result} categories={categories} />;
 }

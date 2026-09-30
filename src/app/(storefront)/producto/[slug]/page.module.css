@@ -1,16 +1,18 @@
 .main {
-  padding: 2rem 1.5rem;
-  max-width: 1000px;
+  padding: 1rem 1rem 2rem;
+  max-width: 1100px;
   margin: 0 auto;
   width: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 @media (min-width: 768px) {
   .main {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 2rem;
+    padding-top: 2rem;
   }
 }
 
@@ -22,7 +24,6 @@
 
 .image {
   width: 100%;
-  border-radius: 6px;
   object-fit: cover;
 }
 
@@ -30,19 +31,12 @@
   width: 100%;
   aspect-ratio: 3 / 4;
   background: #eaeaea;
-  border-radius: 6px;
 }
 
 .info {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.infoHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .category {
@@ -51,12 +45,59 @@
   text-transform: uppercase;
 }
 
+.type {
+  color: #555;
+}
+
 .price {
   font-size: 1.25rem;
   font-weight: 600;
 }
 
-.description {
-  color: #333;
+.block {
+  border-top: 1px solid #e2e2e2;
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   line-height: 1.5;
+}
+
+.block h2 {
+  font-size: 1rem;
+}
+
+.block ul {
+  padding-left: 1.1rem;
+}
+
+.description {
+  white-space: pre-line;
+}
+
+.muted {
+  color: #666;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.875rem;
+}
+
+.table caption {
+  text-align: left;
+  color: #666;
+  padding-bottom: 0.35rem;
+}
+
+.table th,
+.table td {
+  border: 1px solid #e2e2e2;
+  padding: 0.4rem 0.6rem;
+  text-align: center;
 }

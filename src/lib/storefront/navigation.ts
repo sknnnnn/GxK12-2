@@ -35,9 +35,9 @@ export const MENU_LINKS: SiteLink[] = [
 // Accesos: BUSCAR · FAMILIA GxK 🐾 · FAVORITOS · CARRITO
 // CARRITO no figura acá: lo renderiza CartLink (necesita el contador del carrito).
 export const ACCESS_LINKS: SiteLink[] = [
-  { key: "buscar", label: "BUSCAR", href: null, dependsOn: "Bloque 2 — búsqueda" },
+  { key: "buscar", label: "BUSCAR", href: "/buscar" },
   { key: "familia", label: "FAMILIA GxK 🐾", href: null, dependsOn: "Bloque 6 — Familia GxK (registro, Mi Casa)" },
-  { key: "favoritos", label: "FAVORITOS", href: null, dependsOn: "Bloque 2/6 — favoritos (Mi Casa)" },
+  { key: "favoritos", label: "FAVORITOS", href: "/favoritos" },
 ];
 
 // Entradas de Home que no son del menú (Bible §28). Sin ruta hasta el Bloque 5.
@@ -56,15 +56,3 @@ export function getMenuLink(key: string): SiteLink {
 export const FOOTER_LINKS: SiteLink[] = [
   { key: "help", label: "Help", href: null, dependsOn: "Página Help (Bible §31): sin bloque asignado; contenido a definir" },
 ];
-
-// Datos que el footer mostraría y que NO están definidos: null = no se
-// renderiza nada. Completar cuando GXK los defina; no inventar.
-export const SOCIAL_LINKS: { key: string; label: string; href: string | null }[] = [
-  { key: "instagram", label: "Instagram", href: null }, // Bible §35: enlace; URL no definida
-  { key: "tiktok", label: "TikTok", href: null }, // Bible §35: enlace; URL no definida
-];
-
-export const CONTACT = {
-  /** Número/enlace de WhatsApp (Bible §22). No definido. */
-  whatsappHref: null as string | null,
-};

@@ -14,6 +14,9 @@
 
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import type { Tables } from "@/types/database";
+import { applyCatalogQuery, type CatalogListItem, type CatalogQuery } from "./query";
+
+export * from "./query";
 
 // Nombre del bucket de Supabase Storage donde viven las imágenes de
 // producto. DECISIÓN PENDIENTE DE CONFIRMAR: no existe ningún bucket creado
@@ -52,6 +55,8 @@ export type CatalogProductSummary = {
   id: string;
   slug: string;
   name: string;
+  /** Tipo de prenda (Bible §16); null si el admin no lo cargó. */
+  productType: string | null;
   price: number;
   isFeatured: boolean;
   category: CatalogCategory | null;
@@ -72,7 +77,9 @@ export type CatalogProductDetail = {
   id: string;
   slug: string;
   name: string;
+  productType: string | null;
   description: string | null;
+  composition: string | null;
   price: number;
   category: CatalogCategory | null;
   images: CatalogProductImage[];
@@ -89,7 +96,7 @@ export type CatalogProductDetail = {
 // ----------------------------------------------------------------------------
 
 type CategoryRow = Pick<Tables<"categories">, "id" | "slug" | "name">;
-type SizeRow = Pick<Tables<"sizes">, "id" | "name">;
+type SizeRow = Pick<Tables<"sizes">, "id" | "name" | "sort_order">;
 type ColorRow = Pick<Tables<"colors">, "id" | "name" | "hex_code">;
 
 type ProductImageRow = Pick<
@@ -97,12 +104,15 @@ type ProductImageRow = Pick<
   "id" | "storage_path" | "alt_text" | "is_primary" | "sort_order"
 >;
 
-type ProductListRow = Pick<Tables<"products">, "id" | "slug" | "name" | "price" | "is_featured"> & {
+type ProductListRow = Pick<Tables<"products">, "id" | "slug" | "name" | "product_type" | "price" | "is_featured"> & {
   categories: CategoryRow | null;
   product_images: ProductImageRow[];
 };
 
-type ProductDetailRow = Pick<Tables<"products">, "id" | "slug" | "name" | "description" | "price"> & {
+type ProductDetailRow = Pick<
+  Tables<"products">,
+  "id" | "slug" | "name" | "product_type" | "description" | "composition" | "price"
+> & {
   categories: CategoryRow | null;
   product_images: ProductImageRow[];
 };
@@ -156,7 +166,7 @@ export async function getPublishedCategories(supabase: GxkSupabaseClient): Promi
 
 async function queryPublishedProducts(
   supabase: GxkSupabaseClient,
-  options: { categorySlug?: string; featuredOnly?: boolean; limit?: number },
+  options: { categorySlug?: string; featuredOnly?: boolean; ids?: string[]; limit?: number },
 ): Promise<CatalogProductSummary[]> {
   const categoryEmbed = options.categorySlug
     ? "categories!inner ( id, slug, name )"
@@ -165,7 +175,7 @@ async function queryPublishedProducts(
   let query = supabase
     .from("products")
     .select(
-      `id, slug, name, price, is_featured, ${categoryEmbed}, product_images ( id, storage_path, alt_text, is_primary, sort_order )`,
+      `id, slug, name, product_type, price, is_featured, ${categoryEmbed}, product_images ( id, storage_path, alt_text, is_primary, sort_order )`,
     )
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -176,6 +186,9 @@ async function queryPublishedProducts(
   }
   if (options.featuredOnly) {
     query = query.eq("is_featured", true);
+  }
+  if (options.ids) {
+    query = query.in("id", options.ids);
   }
   if (options.limit !== undefined) {
     query = query.limit(options.limit);
@@ -212,6 +225,7 @@ async function queryPublishedProducts(
       id: row.id,
       slug: row.slug,
       name: row.name,
+      productType: row.product_type,
       price: row.price,
       isFeatured: row.is_featured,
       category: toCategory(row.categories),
@@ -254,7 +268,7 @@ export async function getNewArrivals(
 }
 
 const PRODUCT_DETAIL_SELECT =
-  "id, slug, name, description, price, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )";
+  "id, slug, name, product_type, description, composition, price, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )";
 
 /**
  * Arma el detalle (imágenes, variantes, talles y colores derivados de sus
@@ -288,7 +302,13 @@ async function buildProductDetails(
 
   const [sizesRes, colorsRes] = await Promise.all([
     sizeIds.length > 0
-      ? supabase.from("sizes").select("id, name").in("id", sizeIds).order("name", { ascending: true }).returns<SizeRow[]>()
+      ? supabase
+          .from("sizes")
+          .select("id, name, sort_order")
+          .in("id", sizeIds)
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true })
+          .returns<SizeRow[]>()
       : Promise.resolve<{ data: SizeRow[]; error: null }>({ data: [], error: null }),
     colorIds.length > 0
       ? supabase
@@ -309,8 +329,19 @@ async function buildProductDetails(
   const sizesById = new Map(allSizes.map((row) => [row.id, row]));
   const colorsById = new Map(allColors.map((row) => [row.id, row]));
 
+  // Orden de talles del catálogo (sizes.sort_order), luego color: así el
+  // selector muestra S, M, L... y no el orden de la vista.
+  const sizeRank = new Map(allSizes.map((row, index) => [row.id, index]));
+  const colorRank = new Map(allColors.map((row, index) => [row.id, index]));
+
   return products.map((product) => {
-    const productVariants = validVariants.filter((v) => v.product_id === product.id);
+    const productVariants = validVariants
+      .filter((v) => v.product_id === product.id)
+      .sort(
+        (a, b) =>
+          (sizeRank.get(a.size_id ?? "") ?? -1) - (sizeRank.get(b.size_id ?? "") ?? -1) ||
+          (colorRank.get(a.color_id ?? "") ?? -1) - (colorRank.get(b.color_id ?? "") ?? -1),
+      );
 
     const variants: CatalogVariant[] = productVariants.map((row) => ({
       id: row.id,
@@ -335,7 +366,9 @@ async function buildProductDetails(
       id: product.id,
       slug: product.slug,
       name: product.name,
+      productType: product.product_type,
       description: product.description,
+      composition: product.composition,
       price: product.price,
       category: toCategory(product.categories),
       images: toImages(supabase, product.product_images ?? []),
@@ -399,4 +432,156 @@ export async function getProductDetailsByIds(
 
   if (error) throw error;
   return buildProductDetails(supabase, data ?? []);
+}
+
+/**
+ * Resúmenes de productos publicados por id (favoritos). Los ids que ya no
+ * están publicados no aparecen. No garantiza el orden de `ids`.
+ */
+export async function getProductSummariesByIds(
+  supabase: GxkSupabaseClient,
+  ids: string[],
+): Promise<CatalogProductSummary[]> {
+  if (ids.length === 0) return [];
+  return queryPublishedProducts(supabase, { ids });
+}
+
+// ----------------------------------------------------------------------------
+// Medidas reales por talle (Bible §20)
+// ----------------------------------------------------------------------------
+
+export type ProductMeasurementTable = {
+  /** Etiquetas en orden de carga (ancho, largo, hombros...). */
+  labels: string[];
+  /** Una fila por talle (sizeName null = producto sin talles), en el orden de talles del catálogo. */
+  rows: { sizeId: string | null; sizeName: string | null; values: Record<string, number> }[];
+};
+
+type MeasurementRow = Pick<Tables<"product_measurements">, "size_id" | "label" | "value_cm" | "sort_order"> & {
+  sizes: Pick<Tables<"sizes">, "name" | "sort_order"> | null;
+};
+
+/** Pura: arma la tabla talle × medida a partir de las filas. */
+export function buildMeasurementTable(rows: MeasurementRow[]): ProductMeasurementTable | null {
+  if (rows.length === 0) return null;
+  const sorted = [...rows].sort((a, b) => a.sort_order - b.sort_order);
+  const labels: string[] = [];
+  for (const row of sorted) if (!labels.includes(row.label)) labels.push(row.label);
+
+  const bySize = new Map<string, { sizeId: string | null; sizeName: string | null; rank: number; values: Record<string, number> }>();
+  for (const row of sorted) {
+    const key = row.size_id ?? "";
+    const entry = bySize.get(key) ?? {
+      sizeId: row.size_id,
+      sizeName: row.sizes?.name ?? null,
+      rank: row.sizes?.sort_order ?? -1,
+      values: {},
+    };
+    entry.values[row.label] = Number(row.value_cm);
+    bySize.set(key, entry);
+  }
+  const tableRows = [...bySize.values()]
+    .sort((a, b) => a.rank - b.rank || (a.sizeName ?? "").localeCompare(b.sizeName ?? ""))
+    .map(({ sizeId, sizeName, values }) => ({ sizeId, sizeName, values }));
+  return { labels, rows: tableRows };
+}
+
+export async function getProductMeasurements(
+  supabase: GxkSupabaseClient,
+  productId: string,
+): Promise<ProductMeasurementTable | null> {
+  const { data, error } = await supabase
+    .from("product_measurements")
+    .select("size_id, label, value_cm, sort_order, sizes ( name, sort_order )")
+    .eq("product_id", productId)
+    .returns<MeasurementRow[]>();
+  if (error) throw error;
+  return buildMeasurementTable(data ?? []);
+}
+
+// ----------------------------------------------------------------------------
+// Catálogo con búsqueda, filtros y orden (Bloque 2)
+// ----------------------------------------------------------------------------
+
+export type CatalogFacets = {
+  sizes: CatalogSize[];
+  colors: CatalogColor[];
+};
+
+export type CatalogResult = {
+  items: CatalogListItem[];
+  facets: CatalogFacets;
+};
+
+type CatalogProductRow = ProductListRow & Pick<Tables<"products">, "description" | "created_at">;
+
+/**
+ * Catálogo público: productos publicados + sus variantes públicas (talle,
+ * color, disponibilidad) y los talles/colores activos, filtrados y ordenados
+ * en memoria por applyCatalogQuery. El catálogo de GXK es acotado (pocas
+ * unidades por variante), así que se trae completo y se resuelve en un solo
+ * lugar testeable en vez de repartir la lógica entre PostgREST y JS.
+ */
+export async function getCatalog(
+  supabase: GxkSupabaseClient,
+  query: CatalogQuery,
+  options: { newestLimit?: number } = {},
+): Promise<CatalogResult> {
+  const [productsRes, variantsRes, sizesRes, colorsRes] = await Promise.all([
+    supabase
+      .from("products")
+      .select(
+        "id, slug, name, product_type, description, price, is_featured, created_at, categories ( id, slug, name ), product_images ( id, storage_path, alt_text, is_primary, sort_order )",
+      )
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .order("sort_order", { referencedTable: "product_images", ascending: true })
+      .returns<CatalogProductRow[]>(),
+    supabase
+      .from("storefront_product_variants")
+      .select("product_id, size_id, color_id, in_stock")
+      .returns<Pick<VariantRow, "product_id" | "size_id" | "color_id" | "in_stock">[]>(),
+    supabase
+      .from("sizes")
+      .select("id, name, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+      .returns<SizeRow[]>(),
+    supabase.from("colors").select("id, name, hex_code").eq("is_active", true).order("name", { ascending: true }).returns<ColorRow[]>(),
+  ]);
+  if (productsRes.error) throw productsRes.error;
+  if (variantsRes.error) throw variantsRes.error;
+  if (sizesRes.error) throw sizesRes.error;
+  if (colorsRes.error) throw colorsRes.error;
+
+  const variantsByProduct = new Map<string, CatalogListItem["variants"]>();
+  for (const row of variantsRes.data ?? []) {
+    if (!row.product_id) continue;
+    const list = variantsByProduct.get(row.product_id) ?? [];
+    list.push({ sizeId: row.size_id, colorId: row.color_id, inStock: row.in_stock === true });
+    variantsByProduct.set(row.product_id, list);
+  }
+
+  const items: CatalogListItem[] = (productsRes.data ?? []).map((row) => {
+    const variants = variantsByProduct.get(row.id) ?? [];
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      productType: row.product_type,
+      price: row.price,
+      isFeatured: row.is_featured,
+      category: toCategory(row.categories),
+      primaryImage: pickPrimaryImage(toImages(supabase, row.product_images ?? [])),
+      inStock: variants.some((v) => v.inStock),
+      description: row.description,
+      createdAt: row.created_at,
+      variants,
+    };
+  });
+
+  const sizes = (sizesRes.data ?? []).map((row) => ({ id: row.id, name: row.name }));
+  const colors = (colorsRes.data ?? []).map((row) => ({ id: row.id, name: row.name, hexCode: row.hex_code }));
+  return applyCatalogQuery(items, query, { sizes, colors, newestLimit: options.newestLimit });
 }

@@ -1,0 +1,10 @@
+.button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #171717;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}

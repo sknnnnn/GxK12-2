@@ -437,6 +437,36 @@ export type Database = {
           },
         ]
       }
+      product_measurements: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          product_id: string
+          size_id: string | null
+          sort_order: number
+          value_cm: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          product_id: string
+          size_id?: string | null
+          sort_order?: number
+          value_cm: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          product_id?: string
+          size_id?: string | null
+          sort_order?: number
+          value_cm?: number
+        }
+        Relationships: []
+      }
       product_variants: {
         Row: {
           color_id: string | null
@@ -501,6 +531,7 @@ export type Database = {
       products: {
         Row: {
           category_id: string
+          composition: string | null
           created_at: string
           description: string | null
           height_cm: number | null
@@ -509,6 +540,7 @@ export type Database = {
           length_cm: number | null
           name: string
           price: number
+          product_type: string | null
           slug: string
           status: string
           updated_at: string
@@ -517,6 +549,7 @@ export type Database = {
         }
         Insert: {
           category_id: string
+          composition?: string | null
           created_at?: string
           description?: string | null
           height_cm?: number | null
@@ -525,6 +558,7 @@ export type Database = {
           length_cm?: number | null
           name: string
           price: number
+          product_type?: string | null
           slug: string
           status?: string
           updated_at?: string
@@ -533,6 +567,7 @@ export type Database = {
         }
         Update: {
           category_id?: string
+          composition?: string | null
           created_at?: string
           description?: string | null
           height_cm?: number | null
@@ -541,6 +576,7 @@ export type Database = {
           length_cm?: number | null
           name?: string
           price?: number
+          product_type?: string | null
           slug?: string
           status?: string
           updated_at?: string
@@ -649,6 +685,30 @@ export type Database = {
           service_type?: string | null
           shipping_cost?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: boolean
+          instagram_url: string | null
+          tiktok_url: string | null
+          updated_at: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          id?: boolean
+          instagram_url?: string | null
+          tiktok_url?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          id?: boolean
+          instagram_url?: string | null
+          tiktok_url?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
