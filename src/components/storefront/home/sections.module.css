@@ -13,20 +13,86 @@
 }
 
 .hero {
-  margin-top: 2rem;
+  position: relative;
+  min-height: min(70vh, 720px);
+  margin-top: 1rem;
+  padding: clamp(2rem, 5vw, 5rem);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  overflow: hidden;
+  background: var(--surface-strong);
+  color: var(--on-strong);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(17, 17, 17, 0.96) 0%, rgba(17, 17, 17, 0.78) 42%, rgba(17, 17, 17, 0.18) 100%);
+}
+
+.heroIdentity,
+.heroSlogan,
+.heroEntries {
+  position: relative;
+  z-index: 1;
+}
+
+.heroIdentity {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.heroEyebrow {
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.heroIdentity h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2em;
+  font-size: clamp(4.5rem, 15vw, 13rem);
+  line-height: 0.78;
+  letter-spacing: -0.085em;
+  font-weight: 800;
+}
+
+.heroBrand {
+  color: var(--on-strong);
+}
+
+.heroChapter {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--on-strong);
 }
 
 .heroMedia {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  opacity: 0.62;
+}
+
   width: 100%;
   max-height: 70vh;
   object-fit: cover;
 }
 
 .heroSlogan {
-  font-size: 1.125rem;
+  max-width: 28rem;
+  color: color-mix(in srgb, var(--on-strong) 72%, transparent);
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  letter-spacing: 0.04em;
 }
 
 .heroEntries {
@@ -36,8 +102,35 @@
 }
 
 .heroEntry {
-  padding: 0.65rem 1.25rem;
-  border: 1px solid #171717;
+  padding: 0.7rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--on-strong) 42%, transparent);
+  color: var(--on-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.heroEntry:hover,
+.heroEntry:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-strong);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    min-height: 78vh;
+    padding: 1.5rem;
+  }
+
+  .heroIdentity h1 {
+    font-size: clamp(4rem, 22vw, 7rem);
+  }
+
+  .heroChapter {
+    -webkit-text-stroke-width: 0.7px;
+  }
 }
 
 .entryDescription {

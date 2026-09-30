@@ -13,7 +13,13 @@ export function HeroSection({ media }: { media: { imageUrl: string; alt: string 
         // eslint-disable-next-line @next/next/no-img-element -- mismo criterio que ProductCard: sin next/image todavía.
         <img src={media.imageUrl} alt={media.alt} className={styles.heroMedia} />
       )}
-      <h1 id="home-hero">{BRAND_NAME}</h1>
+      <div className={styles.heroIdentity}>
+        <span className={styles.heroEyebrow}>ESTUDIO / 2024</span>
+        <h1 id="home-hero">
+          <span className={styles.heroBrand}>{BRAND_NAME.split(" ")[0]}</span>
+          <span className={styles.heroChapter}>{BRAND_NAME.split(" ").slice(1).join(" ")}</span>
+        </h1>
+      </div>
       <p className={styles.heroSlogan}>{SLOGAN}</p>
       <div className={styles.heroEntries}>
         {HERO_ENTRIES.map((entry) => (
