@@ -1,7 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getFamiliaOverview } from "@/services/admin";
+import Link from "next/link";
+import { getFamiliaOverview, getMemberDetail, searchMembers } from "@/services/admin";
 import { getCaminoSettings } from "@/services/familia";
-import { STATION_5_PERCENT, STATION_10_MAX_PERCENT } from "@/lib/familia/camino";
+import { caminoPosition, STATION_5_PERCENT, STATION_10_MAX_PERCENT } from "@/lib/familia/camino";
+import { orderStatusLabel } from "@/lib/orders/status";
+import { formatPrice } from "@/lib/format";
 import { formatDateAR } from "@/lib/datetime";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { Flash } from "@/components/admin/Flash";
@@ -15,6 +18,12 @@ export default async function AdminFamiliaPage(props: PageProps<"/admin/familia"
   const supabase = await createSupabaseServerClient();
   const [settings, overview] = await Promise.all([getCaminoSettings(supabase), getFamiliaOverview(supabase)]);
   const sent = typeof searchParams.enviadas === "string" ? searchParams.enviadas : null;
+  // Búsqueda de miembros (solo lectura): pedidos, progreso del Camino y beneficios.
+  const query = typeof searchParams.q === "string" ? searchParams.q.trim() : "";
+  const matches = query ? await searchMembers(supabase, query) : [];
+  const selected = matches.find((member) => member.userId === searchParams.miembro) ?? (matches.length === 1 ? matches[0] : null);
+  const detail = selected ? await getMemberDetail(supabase, selected) : null;
+  const position = selected ? caminoPosition(selected.confirmedPurchases) : null;
 
   return (
     <div className={styles.page}>
@@ -38,7 +47,77 @@ export default async function AdminFamiliaPage(props: PageProps<"/admin/familia"
         )}
       </section>
 
-      <form action={saveCaminoSettingsAction} className={`${styles.card} ${styles.form}`}>
+      <section className={styles.card} id="miembros">
+        <h2>Buscar miembro</h2>
+        <form method="get" action="/admin/familia#miembros" className={styles.row}>
+          <input name="q" defaultValue={query} placeholder="Email o nombre" aria-label="Email o nombre" minLength={2} required />
+          <button type="submit" className={styles.buttonSecondary}>
+            Buscar
+          </button>
+        </form>
+        {query && matches.length === 0 && <p className={styles.muted}>No hay miembros que coincidan.</p>}
+        {matches.length > 1 && (
+          <ul className={styles.list}>
+            {matches.map((member) => (
+              <li key={member.userId}>
+                <Link href={`/admin/familia?q=${encodeURIComponent(query)}&miembro=${member.userId}#miembros`}>
+                  {member.email}
+                </Link>{" "}
+                — {member.name || "(sin nombre)"}
+              </li>
+            ))}
+          </ul>
+        )}
+        {selected && detail && position && (
+          <div className={styles.form}>
+            <h3>{selected.name || selected.email}</h3>
+            <p>
+              {selected.email}
+              {selected.phone ? ` · ${selected.phone}` : ""} · miembro desde {formatDateAR(selected.createdAt)}
+              {selected.emailConfirmed ? "" : " · email sin confirmar"}
+            </p>
+            <p>
+              Camino: vuelta {position.cycle}, estación {position.station} de 10 ({selected.confirmedPurchases} compras que cuentan, incluidas
+              las hechas como invitado con este email).
+            </p>
+            <h4>Beneficios</h4>
+            {detail.rewards.length === 0 ? (
+              <p className={styles.muted}>Sin beneficios emitidos.</p>
+            ) : (
+              <ul className={styles.list}>
+                {detail.rewards.map((reward) => (
+                  <li key={reward.id}>
+                    Vuelta {reward.cycle} · estación {reward.station} · {reward.status === "available" ? "disponible" : reward.status === "used" ? "usado" : "anulado"}
+                    {reward.percent !== null ? ` · ${reward.percent}%` : ""}
+                    {reward.discountAmount !== null ? ` · ${formatPrice(reward.discountAmount)}` : ""}
+                    {reward.orderId ? (
+                      <>
+                        {" "}
+                        · <Link href={`/admin/pedidos/${reward.orderId}`}>pedido</Link>
+                      </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <h4>Pedidos</h4>
+            {detail.orders.length === 0 ? (
+              <p className={styles.muted}>Sin pedidos con este email.</p>
+            ) : (
+              <ul className={styles.list}>
+                {detail.orders.map((order) => (
+                  <li key={order.id}>
+                    <Link href={`/admin/pedidos/${order.id}`}>#{order.orderNumber}</Link> — {formatDateAR(order.createdAt)} ·{" "}
+                    {orderStatusLabel(order.status)} · {formatPrice(order.total)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+
+      <form action={saveCaminoSettingsAction} id="camino" className={`${styles.card} ${styles.form}`}>
         <h2>Camino G &amp; K</h2>
         <p className={styles.muted}>
           10 estaciones · 1 compra confirmada = 1 estación · solo pedidos pagados, confirmados, no cancelados ni devueltos. Estación 5 ={" "}

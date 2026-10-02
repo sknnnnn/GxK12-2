@@ -55,6 +55,8 @@ export type UniverseEntryInput = {
   videoUrl: string | null;
   status: (typeof CONTENT_STATUSES)[number];
   membersOnly: boolean;
+  /** false = la entrada existe solo como contexto (p. ej. una temporada), sin página pública propia. */
+  hasPage: boolean;
   publishedAt: string;
   sortOrder: number;
 };
@@ -75,12 +77,13 @@ type EntryRow = {
   video_url: string | null;
   status: string;
   members_only: boolean;
+  has_page: boolean;
   published_at: string;
   sort_order: number;
   cover_path: string | null;
 };
 
-const ENTRY_COLUMNS = "id, kind, title, slug, summary, body, video_url, status, members_only, published_at, sort_order, cover_path";
+const ENTRY_COLUMNS = "id, kind, title, slug, summary, body, video_url, status, members_only, has_page, published_at, sort_order, cover_path";
 
 function toEntry(supabase: GxkSupabaseClient, row: EntryRow): AdminUniverseEntry {
   return {
@@ -93,6 +96,7 @@ function toEntry(supabase: GxkSupabaseClient, row: EntryRow): AdminUniverseEntry
     videoUrl: row.video_url,
     status: row.status as UniverseEntryInput["status"],
     membersOnly: row.members_only,
+    hasPage: row.has_page,
     publishedAt: row.published_at,
     sortOrder: row.sort_order,
     coverPath: row.cover_path,
@@ -110,6 +114,7 @@ function entryRow(input: UniverseEntryInput): TablesInsert<"universe_entries"> {
     video_url: input.videoUrl,
     status: input.status,
     members_only: input.membersOnly,
+    has_page: input.hasPage,
     published_at: input.publishedAt,
     sort_order: input.sortOrder,
   };
@@ -476,6 +481,7 @@ export type EventInput = {
   schedule: string | null;
   description: string | null;
   participation: string | null;
+  extraInfo: string | null;
   status: (typeof CONTENT_STATUSES)[number];
   membersOnly: boolean;
 };
@@ -493,12 +499,13 @@ type EventRow = {
   schedule: string | null;
   description: string | null;
   participation: string | null;
+  extra_info: string | null;
   status: string;
   members_only: boolean;
   cover_path: string | null;
 };
 
-const EVENT_COLUMNS = "id, kind, title, slug, starts_at, ends_at, place, schedule, description, participation, status, members_only, cover_path";
+const EVENT_COLUMNS = "id, kind, title, slug, starts_at, ends_at, place, schedule, description, participation, extra_info, status, members_only, cover_path";
 
 function toEvent(supabase: GxkSupabaseClient, row: EventRow): AdminEvent {
   return {
@@ -512,6 +519,7 @@ function toEvent(supabase: GxkSupabaseClient, row: EventRow): AdminEvent {
     schedule: row.schedule,
     description: row.description,
     participation: row.participation,
+    extraInfo: row.extra_info,
     status: row.status as EventInput["status"],
     membersOnly: row.members_only,
     coverPath: row.cover_path,
@@ -542,6 +550,7 @@ export async function saveEvent(supabase: GxkSupabaseClient, id: string | null, 
     schedule: input.schedule,
     description: input.description,
     participation: input.participation,
+    extra_info: input.extraInfo,
     status: input.status,
     members_only: input.membersOnly,
   };

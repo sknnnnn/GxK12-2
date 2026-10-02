@@ -2,18 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getEventBySlug } from "@/services/universe";
+import { getEventBySlug, getEventRelations } from "@/services/universe";
+import { RelatedLinks, RelatedShop } from "@/components/storefront/content/Related";
 import { formatDateAR, formatTimeAR } from "@/lib/datetime";
 import { RichText } from "@/components/storefront/content/RichText";
 import styles from "@/components/storefront/content/content.module.css";
 
 export const metadata: Metadata = { title: "Eventos — GXK" };
 
-// Bible §29: fecha, lugar, horario, descripción, participación.
+// Bible §29: fecha, lugar, horario, descripción, participación. GXK informa
+// cómo participar: no hay RSVP, tickets ni registro de participantes.
 export default async function EventoPage({ params }: PageProps<"/eventos/[slug]">) {
   const { slug } = await params;
-  const event = await getEventBySlug(await createSupabaseServerClient(), slug);
+  const supabase = await createSupabaseServerClient();
+  const event = await getEventBySlug(supabase, slug);
   if (!event) notFound();
+  const related = await getEventRelations(supabase, event.id);
 
   return (
     <main className={`${styles.page} ${styles.narrow}`}>
@@ -49,6 +53,14 @@ export default async function EventoPage({ params }: PageProps<"/eventos/[slug]"
           <RichText text={event.participation} />
         </section>
       )}
+      {event.extraInfo && (
+        <section className={styles.section}>
+          <h2>Información adicional</h2>
+          <RichText text={event.extraInfo} />
+        </section>
+      )}
+      <RelatedShop supabase={supabase} productIds={related.productIds} outfitIds={related.outfitIds} />
+      <RelatedLinks related={related} />
     </main>
   );
 }

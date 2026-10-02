@@ -2,16 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getUniverseEntryBySlug } from "@/services/universe";
+import { getEntryRelations, getUniverseEntryBySlug } from "@/services/universe";
 import { TrackEvent } from "@/components/storefront/analytics/Track";
-import { getProductDetailsByIds } from "@/services/catalog";
-import { getCurrentOutfits } from "@/services/outfits";
 import { formatDateAR } from "@/lib/datetime";
-import { formatPrice } from "@/lib/format";
 import { RichText } from "@/components/storefront/content/RichText";
 import { VideoEmbed } from "@/components/storefront/content/VideoEmbed";
-import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
-import { OutfitCard } from "@/components/storefront/home/OutfitCard";
+import { RelatedLinks, RelatedShop } from "@/components/storefront/content/Related";
 import styles from "@/components/storefront/content/content.module.css";
 
 export const metadata: Metadata = { title: "Universo — GXK" };
@@ -25,13 +21,7 @@ export default async function UniverseEntryPage({ params }: PageProps<"/universo
   const entry = await getUniverseEntryBySlug(supabase, slug);
   if (!entry) notFound();
 
-  const [products, outfits] = await Promise.all([
-    getProductDetailsByIds(supabase, entry.productIds),
-    getCurrentOutfits(supabase, { ids: entry.outfitIds }),
-  ]);
-  const orderedProducts = entry.productIds
-    .map((id) => products.find((product) => product.id === id))
-    .filter((product): product is NonNullable<typeof product> => Boolean(product));
+  const related = await getEntryRelations(supabase, entry.id);
 
   return (
     <main className={styles.page}>
@@ -58,41 +48,8 @@ export default async function UniverseEntryPage({ params }: PageProps<"/universo
         </div>
       )}
 
-      {orderedProducts.length > 0 && (
-        <section className={styles.section} aria-labelledby="productos">
-          <h2 id="productos">Productos</h2>
-          <div className={styles.grid}>
-            {orderedProducts.map((product) => (
-              <div key={product.id} className={styles.card}>
-                {product.images[0] ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- mismo criterio que ProductCard.
-                  <img src={product.images[0].url} alt={product.images[0].altText ?? product.name} className={styles.cardImage} />
-                ) : (
-                  <div className={styles.cardImagePlaceholder} aria-hidden="true" />
-                )}
-                <div className={styles.cardBody}>
-                  <Link href={`/producto/${product.slug}`}>
-                    <strong>{product.name}</strong>
-                  </Link>
-                  <span>{formatPrice(product.price)}</span>
-                  <ProductPurchasePanel product={product} whatsappNumber={null} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {outfits.length > 0 && (
-        <section className={styles.section} aria-labelledby="outfits">
-          <h2 id="outfits">Outfits</h2>
-          <div className={styles.grid}>
-            {outfits.map((outfit) => (
-              <OutfitCard key={outfit.id} outfit={outfit} />
-            ))}
-          </div>
-        </section>
-      )}
+      <RelatedShop supabase={supabase} productIds={entry.productIds} outfitIds={entry.outfitIds} />
+      <RelatedLinks related={related} />
     </main>
   );
 }

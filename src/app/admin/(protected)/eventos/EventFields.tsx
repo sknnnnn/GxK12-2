@@ -2,7 +2,7 @@ import { CONTENT_STATUS_LABELS, CONTENT_STATUSES, EVENT_KIND_LABELS, EVENT_KINDS
 import { isoToLocalInput } from "@/lib/datetime";
 import styles from "@/components/admin/admin.module.css";
 
-// Bible §29: fecha, lugar, horario, descripción, participación.
+// Bible §29: fecha, lugar, horario, descripción, participación (+ información adicional).
 export function EventFields({ event }: { event?: AdminEvent }) {
   return (
     <>
@@ -51,6 +51,10 @@ export function EventFields({ event }: { event?: AdminEvent }) {
       <label className={styles.field}>
         Participación (cómo participar, inscripción, invitación…)
         <textarea name="participation" rows={3} defaultValue={event?.participation ?? ""} />
+      </label>
+      <label className={styles.field}>
+        Información adicional
+        <textarea name="extraInfo" rows={3} defaultValue={event?.extraInfo ?? ""} />
       </label>
       <div className={styles.row}>
         <label className={styles.field}>

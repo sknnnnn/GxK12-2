@@ -56,6 +56,7 @@ function parseEntry(formData: FormData): { ok: true; input: UniverseEntryInput }
       videoUrl: videoUrl || null,
       status: status as UniverseEntryInput["status"],
       membersOnly: formData.get("membersOnly") === "on",
+      hasPage: formData.get("hasPage") === "on",
       publishedAt: localInputToIso(String(formData.get("publishedAt") ?? "")) ?? new Date().toISOString(),
       sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
     },

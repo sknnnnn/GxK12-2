@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAdminOutfits, getAdminUniverseEntry, getProductPickerOptions } from "@/services/admin";
+import { getAdminOutfits, getAdminUniverseEntry, getLinkedIds, getProductPickerOptions, getRelationOptions } from "@/services/admin";
+import { RelationEditor } from "@/components/admin/RelationEditor";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { Flash } from "@/components/admin/Flash";
 import { CoverManager } from "@/components/admin/CoverManager";
@@ -22,10 +23,12 @@ export default async function AdminUniverseEntryPage(props: PageProps<"/admin/un
   const { id } = await props.params;
   const searchParams = await props.searchParams;
   const supabase = await createSupabaseServerClient();
-  const [entry, products, outfits] = await Promise.all([
+  const [entry, products, outfits, options, relatedIds] = await Promise.all([
     getAdminUniverseEntry(supabase, id),
     getProductPickerOptions(supabase),
     getAdminOutfits(supabase),
+    getRelationOptions(supabase),
+    getLinkedIds(supabase, "entry_entry", id),
   ]);
   if (!entry) notFound();
   const returnTo = `/admin/universo/${entry.id}`;
@@ -131,6 +134,15 @@ export default async function AdminUniverseEntryPage(props: PageProps<"/admin/un
           <SubmitButton className={styles.buttonSecondary}>Asociar</SubmitButton>
         </form>
       </section>
+
+      <RelationEditor
+        title="Relacionado con (temporadas, campañas, producciones, colaboraciones…)"
+        relation="entry_entry"
+        ownerId={entry.id}
+        linkedIds={relatedIds}
+        options={options.entries}
+        returnTo={returnTo}
+      />
 
       <form action={deleteUniverseEntryAction.bind(null, entry.id)}>
         <SubmitButton className={styles.danger} confirmText={`¿Borrar "${entry.title}"? No borra productos ni outfits.`}>

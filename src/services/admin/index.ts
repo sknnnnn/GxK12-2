@@ -38,6 +38,7 @@ export * from "./media";
 export * from "./outfits";
 export * from "./universe";
 export * from "./familia";
+export * from "./relations";
 
 // Pedidos considerados "venta" para el total de Ventas del dashboard:
 // pending_payment (todavía no pagó) y cancelled/refunded (no se concretó o

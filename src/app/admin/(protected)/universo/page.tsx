@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { CONTENT_STATUS_LABELS, getAdminUniverseEntries, UNIVERSE_KIND_LABELS } from "@/services/admin";
+import { CONTENT_STATUS_LABELS, getAdminUniverseEntries, UNIVERSE_KIND_LABELS, UNIVERSE_KINDS, type UniverseKind } from "@/services/admin";
 import { formatDateTimeAR } from "@/lib/datetime";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { Flash } from "@/components/admin/Flash";
@@ -12,12 +12,15 @@ import { EntryFields } from "./EntryFields";
 // y los eventos tienen su propia pantalla.
 export default async function AdminUniversoPage(props: PageProps<"/admin/universo">) {
   const searchParams = await props.searchParams;
-  const entries = await getAdminUniverseEntries(await createSupabaseServerClient());
+  // ?tipo= : Campaigns / Productions / Seasons / Collaborations son vistas filtradas de las mismas entradas.
+  const kind = (UNIVERSE_KINDS as readonly string[]).includes(String(searchParams.tipo)) ? (searchParams.tipo as UniverseKind) : null;
+  const allEntries = await getAdminUniverseEntries(await createSupabaseServerClient());
+  const entries = kind ? allEntries.filter((entry) => entry.kind === kind) : allEntries;
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Universo</h1>
+        <h1>Universo{kind ? ` · ${UNIVERSE_KIND_LABELS[kind]}` : ""}</h1>
         <span>
           <Link href="/admin/aventuras">Aventuras de G &amp; K</Link> · <Link href="/admin/eventos">Eventos</Link>
         </span>
@@ -43,6 +46,7 @@ export default async function AdminUniversoPage(props: PageProps<"/admin/univers
                   <td>
                     <Link href={`/admin/universo/${entry.id}`}>{entry.title}</Link>
                     {entry.membersOnly && <span className={styles.badge}> Members Only</span>}
+                    {!entry.hasPage && <span className={styles.badge}> Sin página</span>}
                   </td>
                   <td>{UNIVERSE_KIND_LABELS[entry.kind]}</td>
                   <td>{CONTENT_STATUS_LABELS[entry.status]}</td>
@@ -56,7 +60,7 @@ export default async function AdminUniversoPage(props: PageProps<"/admin/univers
 
       <form action={createUniverseEntryAction} className={`${styles.card} ${styles.form}`}>
         <h2>Nueva entrada</h2>
-        <EntryFields />
+        <EntryFields defaultKind={kind ?? undefined} />
         <SubmitButton className={styles.button}>Crear</SubmitButton>
       </form>
     </div>

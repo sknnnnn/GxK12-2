@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAdventureChapter } from "@/services/universe";
+import { getAdventureChapter, getChapterRelations } from "@/services/universe";
+import { RelatedLinks, RelatedShop } from "@/components/storefront/content/Related";
 import { RichText } from "@/components/storefront/content/RichText";
 import { VideoEmbed } from "@/components/storefront/content/VideoEmbed";
 import styles from "@/components/storefront/content/content.module.css";
@@ -11,9 +12,12 @@ export const metadata: Metadata = { title: "Las Aventuras de G & K — GXK" };
 
 export default async function ChapterPage({ params }: PageProps<"/universo/aventuras/[season]/[chapter]">) {
   const { season: seasonSlug, chapter: chapterSlug } = await params;
-  const data = await getAdventureChapter(await createSupabaseServerClient(), seasonSlug, chapterSlug);
+  const supabase = await createSupabaseServerClient();
+  const data = await getAdventureChapter(supabase, seasonSlug, chapterSlug);
   if (!data) notFound();
   const { season, chapter, adventures, previous, next } = data;
+  // Relaciones opcionales: sin productos ni outfits el capítulo no es comprable.
+  const related = await getChapterRelations(supabase, chapter.id);
 
   return (
     <main className={`${styles.page} ${styles.narrow}`}>
@@ -44,6 +48,8 @@ export default async function ChapterPage({ params }: PageProps<"/universo/avent
           </article>
         ))
       )}
+      <RelatedShop supabase={supabase} productIds={related.productIds} outfitIds={related.outfitIds} />
+      <RelatedLinks related={related} />
       <nav className={styles.pager} aria-label="Capítulos">
         {previous ? <Link href={`/universo/aventuras/${season.slug}/${previous.slug}`}>← {previous.label}</Link> : <span />}
         {next ? <Link href={`/universo/aventuras/${season.slug}/${next.slug}`}>{next.label} →</Link> : <span />}

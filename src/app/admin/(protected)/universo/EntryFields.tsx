@@ -1,14 +1,14 @@
-import { CONTENT_STATUS_LABELS, CONTENT_STATUSES, UNIVERSE_KIND_LABELS, UNIVERSE_KINDS, type AdminUniverseEntry } from "@/services/admin";
+import { CONTENT_STATUS_LABELS, CONTENT_STATUSES, UNIVERSE_KIND_LABELS, UNIVERSE_KINDS, type AdminUniverseEntry, type UniverseKind } from "@/services/admin";
 import { isoToLocalInput } from "@/lib/datetime";
 import styles from "@/components/admin/admin.module.css";
 
-export function EntryFields({ entry }: { entry?: AdminUniverseEntry }) {
+export function EntryFields({ entry, defaultKind }: { entry?: AdminUniverseEntry; defaultKind?: UniverseKind }) {
   return (
     <>
       <div className={styles.row}>
         <label className={styles.field}>
           Tipo
-          <select name="kind" defaultValue={entry?.kind ?? "campaign"}>
+          <select name="kind" defaultValue={entry?.kind ?? defaultKind ?? "campaign"}>
             {UNIVERSE_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {UNIVERSE_KIND_LABELS[kind]}
@@ -60,6 +60,10 @@ export function EntryFields({ entry }: { entry?: AdminUniverseEntry }) {
       <label className={styles.check}>
         <input type="checkbox" name="membersOnly" defaultChecked={entry?.membersOnly ?? false} /> Members Only (contenido exclusivo de
         Familia GxK)
+      </label>
+      <label className={styles.check}>
+        <input type="checkbox" name="hasPage" defaultChecked={entry?.hasPage ?? true} /> Tiene página pública (sin tildar: la entrada
+        solo aparece como contexto en sus relaciones, sin página ni lugar en el listado del Universo)
       </label>
     </>
   );

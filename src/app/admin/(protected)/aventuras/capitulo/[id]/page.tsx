@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAdminChapter } from "@/services/admin";
+import { getAdminChapter, getLinkedIds, getRelationOptions } from "@/services/admin";
+import { RelationEditor } from "@/components/admin/RelationEditor";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { Flash } from "@/components/admin/Flash";
 import { CoverManager } from "@/components/admin/CoverManager";
@@ -12,7 +13,14 @@ import { StatusSelect } from "../../Fields";
 export default async function AdminChapterPage(props: PageProps<"/admin/aventuras/capitulo/[id]">) {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
-  const data = await getAdminChapter(await createSupabaseServerClient(), id);
+  const supabase = await createSupabaseServerClient();
+  const [data, options, entryIds, productIds, outfitIds] = await Promise.all([
+    getAdminChapter(supabase, id),
+    getRelationOptions(supabase),
+    getLinkedIds(supabase, "chapter_entry", id),
+    getLinkedIds(supabase, "chapter_product", id),
+    getLinkedIds(supabase, "chapter_outfit", id),
+  ]);
   if (!data) notFound();
   const { chapter, season, adventures } = data;
   const returnTo = `/admin/aventuras/capitulo/${chapter.id}`;
@@ -110,6 +118,11 @@ export default async function AdminChapterPage(props: PageProps<"/admin/aventura
           <SubmitButton className={styles.button}>Agregar aventura</SubmitButton>
         </form>
       </section>
+
+      {/* Relaciones opcionales del capítulo: sin productos ni outfits, el capítulo no es comprable. */}
+      <RelationEditor title="Universo relacionado" relation="chapter_entry" ownerId={chapter.id} linkedIds={entryIds} options={options.entries} returnTo={returnTo} />
+      <RelationEditor title="Productos" relation="chapter_product" ownerId={chapter.id} linkedIds={productIds} options={options.products} returnTo={returnTo} />
+      <RelationEditor title="Outfits" relation="chapter_outfit" ownerId={chapter.id} linkedIds={outfitIds} options={options.outfits} returnTo={returnTo} />
 
       <form action={deleteChapterAction.bind(null, season.id, chapter.id)}>
         <SubmitButton className={styles.danger} confirmText="¿Borrar el capítulo con sus aventuras?">

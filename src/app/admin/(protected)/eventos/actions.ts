@@ -31,6 +31,7 @@ function parseEvent(formData: FormData): { ok: true; input: EventInput } | { ok:
       schedule: text(formData, "schedule") || null,
       description: text(formData, "description") || null,
       participation: text(formData, "participation") || null,
+      extraInfo: text(formData, "extraInfo") || null,
       status: status as EventInput["status"],
       membersOnly: formData.get("membersOnly") === "on",
     },

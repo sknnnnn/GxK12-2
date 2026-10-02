@@ -7,6 +7,7 @@
 // pasa por RLS: el público ve lo publicado y no exclusivo; con sesión de
 // Familia GxK (Bloque 6) RLS también deja ver lo Members Only.
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GxkSupabaseClient } from "@/lib/supabase/types";
 import { buildImageUrl } from "@/services/catalog";
 
@@ -86,6 +87,7 @@ export async function getUniverseEntries(
     .from("universe_entries")
     .select("id, kind, title, slug, summary, cover_path, published_at, members_only")
     .eq("status", "published")
+    .eq("has_page", true)
     .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false })
     .order("sort_order", { ascending: true });
@@ -111,6 +113,7 @@ export async function getUniverseEntryBySlug(supabase: GxkSupabaseClient, slug: 
     .select("id, kind, title, slug, summary, body, video_url, cover_path, published_at, members_only")
     .eq("slug", slug)
     .eq("status", "published")
+    .eq("has_page", true)
     .maybeSingle()
     .returns<EntryRow & { body: string | null; video_url: string | null }>();
   if (error) throw error;
@@ -243,6 +246,7 @@ export type PublicEvent = {
   schedule: string | null;
   description: string | null;
   participation: string | null;
+  extraInfo: string | null;
   coverUrl: string | null;
   membersOnly: boolean;
 };
@@ -258,11 +262,12 @@ type EventRow = {
   schedule: string | null;
   description: string | null;
   participation: string | null;
+  extra_info: string | null;
   cover_path: string | null;
   members_only: boolean;
 };
 
-const EVENT_COLUMNS = "id, kind, title, slug, starts_at, ends_at, place, schedule, description, participation, cover_path, members_only";
+const EVENT_COLUMNS = "id, kind, title, slug, starts_at, ends_at, place, schedule, description, participation, extra_info, cover_path, members_only";
 
 function toEvent(supabase: GxkSupabaseClient, row: EventRow): PublicEvent {
   return {
@@ -277,6 +282,7 @@ function toEvent(supabase: GxkSupabaseClient, row: EventRow): PublicEvent {
     schedule: row.schedule,
     description: row.description,
     participation: row.participation,
+    extraInfo: row.extra_info,
     coverUrl: image(supabase, row.cover_path),
     membersOnly: row.members_only,
   };
@@ -321,4 +327,131 @@ export async function getEventBySlug(supabase: GxkSupabaseClient, slug: string):
     .returns<EventRow>();
   if (error) throw error;
   return data ? toEvent(supabase, data) : null;
+}
+
+// ----------------------------------------------------------------------------
+// Relaciones editoriales (Admin Control, Fase A): opcionales y sin jerarquía.
+// RLS solo devuelve una relación si ambos extremos son visibles; además se
+// filtra explícitamente por publicado (un admin navegando el sitio ve todo
+// por RLS). Productos y outfits se resuelven con los servicios de catálogo:
+// un producto agotado sigue apareciendo (la historia permanece).
+// ----------------------------------------------------------------------------
+
+export type RelatedContent = {
+  /** Entradas del Universo; sin página (`hasPage` false) se muestran solo como contexto. */
+  entries: { id: string; kindLabel: string; title: string; slug: string; hasPage: boolean }[];
+  chapters: { id: string; label: string; title: string | null; href: string }[];
+  events: { id: string; title: string; slug: string; startsAt: string }[];
+  productIds: string[];
+  outfitIds: string[];
+};
+
+const RELATION_TABLES = {
+  chapter_entries: "adventure_chapter_entries",
+  chapter_products: "adventure_chapter_products",
+  chapter_outfits: "adventure_chapter_outfits",
+  event_entries: "event_entries",
+  event_chapters: "event_adventure_chapters",
+  event_products: "event_products",
+  event_outfits: "event_outfits",
+} as const;
+
+async function linked(
+  supabase: GxkSupabaseClient,
+  table: (typeof RELATION_TABLES)[keyof typeof RELATION_TABLES],
+  ownerColumn: string,
+  ownerId: string,
+  targetColumn: string,
+): Promise<string[]> {
+  const { data, error } = await (supabase as unknown as SupabaseClient).from(table).select("*").eq(ownerColumn, ownerId).order("sort_order");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, string>[]).map((row) => row[targetColumn]);
+}
+
+function inOrder<T extends { id: string }>(ids: string[], rows: T[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+}
+
+async function resolveRelated(
+  supabase: GxkSupabaseClient,
+  ids: { entryIds: string[]; chapterIds: string[]; eventIds: string[]; productIds: string[]; outfitIds: string[] },
+): Promise<RelatedContent> {
+  const none = Promise.resolve({ data: [], error: null });
+  const [entriesRes, chaptersRes, eventsRes] = await Promise.all([
+    ids.entryIds.length
+      ? supabase
+          .from("universe_entries")
+          .select("id, kind, title, slug, has_page")
+          .in("id", ids.entryIds)
+          .eq("status", "published")
+          .lte("published_at", new Date().toISOString())
+      : none,
+    ids.chapterIds.length
+      ? supabase
+          .from("adventure_chapters")
+          .select("id, label, title, slug, adventure_seasons!inner ( slug, status )")
+          .in("id", ids.chapterIds)
+          .eq("status", "published")
+          .eq("adventure_seasons.status", "published")
+          .returns<{ id: string; label: string; title: string | null; slug: string; adventure_seasons: { slug: string } }[]>()
+      : none,
+    ids.eventIds.length ? supabase.from("events").select("id, title, slug, starts_at").in("id", ids.eventIds).eq("status", "published") : none,
+  ]);
+  if (entriesRes.error) throw entriesRes.error;
+  if (chaptersRes.error) throw chaptersRes.error;
+  if (eventsRes.error) throw eventsRes.error;
+  const entries = (entriesRes.data ?? []) as { id: string; kind: string; title: string; slug: string; has_page: boolean }[];
+  const chapters = (chaptersRes.data ?? []) as { id: string; label: string; title: string | null; slug: string; adventure_seasons: { slug: string } }[];
+  const events = (eventsRes.data ?? []) as { id: string; title: string; slug: string; starts_at: string }[];
+  return {
+    entries: inOrder(ids.entryIds, entries).map((row) => ({
+      id: row.id,
+      kindLabel: UNIVERSE_KIND_LABELS[row.kind] ?? row.kind,
+      title: row.title,
+      slug: row.slug,
+      hasPage: row.has_page,
+    })),
+    chapters: inOrder(ids.chapterIds, chapters).map((row) => ({
+      id: row.id,
+      label: row.label,
+      title: row.title,
+      href: `/universo/aventuras/${row.adventure_seasons.slug}/${row.slug}`,
+    })),
+    events: inOrder(ids.eventIds, events).map((row) => ({ id: row.id, title: row.title, slug: row.slug, startsAt: row.starts_at })),
+    productIds: ids.productIds,
+    outfitIds: ids.outfitIds,
+  };
+}
+
+/** Relaciones de una entrada del Universo (sus productos/outfits propios vienen en UniverseEntryDetail). */
+export async function getEntryRelations(supabase: GxkSupabaseClient, entryId: string): Promise<RelatedContent> {
+  const [pairsRes, chapterIds, eventIds] = await Promise.all([
+    supabase.from("universe_entry_relations").select("entry_id, related_entry_id").or(`entry_id.eq.${entryId},related_entry_id.eq.${entryId}`).order("sort_order"),
+    linked(supabase, RELATION_TABLES.chapter_entries, "entry_id", entryId, "chapter_id"),
+    linked(supabase, RELATION_TABLES.event_entries, "entry_id", entryId, "event_id"),
+  ]);
+  if (pairsRes.error) throw pairsRes.error;
+  const entryIds = (pairsRes.data ?? []).map((row) => (row.entry_id === entryId ? row.related_entry_id : row.entry_id));
+  return resolveRelated(supabase, { entryIds, chapterIds, eventIds, productIds: [], outfitIds: [] });
+}
+
+export async function getChapterRelations(supabase: GxkSupabaseClient, chapterId: string): Promise<RelatedContent> {
+  const [entryIds, productIds, outfitIds, eventIds] = await Promise.all([
+    linked(supabase, RELATION_TABLES.chapter_entries, "chapter_id", chapterId, "entry_id"),
+    linked(supabase, RELATION_TABLES.chapter_products, "chapter_id", chapterId, "product_id"),
+    linked(supabase, RELATION_TABLES.chapter_outfits, "chapter_id", chapterId, "outfit_id"),
+    linked(supabase, RELATION_TABLES.event_chapters, "chapter_id", chapterId, "event_id"),
+  ]);
+  return resolveRelated(supabase, { entryIds, chapterIds: [], eventIds, productIds, outfitIds });
+}
+
+export async function getEventRelations(supabase: GxkSupabaseClient, eventId: string): Promise<RelatedContent> {
+  const [entryIds, chapterIds, productIds, outfitIds] = await Promise.all([
+    linked(supabase, RELATION_TABLES.event_entries, "event_id", eventId, "entry_id"),
+    linked(supabase, RELATION_TABLES.event_chapters, "event_id", eventId, "chapter_id"),
+    linked(supabase, RELATION_TABLES.event_products, "event_id", eventId, "product_id"),
+    linked(supabase, RELATION_TABLES.event_outfits, "event_id", eventId, "outfit_id"),
+  ]);
+  return resolveRelated(supabase, { entryIds, chapterIds, eventIds: [], productIds, outfitIds });
 }

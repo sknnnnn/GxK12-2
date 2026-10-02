@@ -16,7 +16,7 @@ export default async function CatalogoBasePage(props: PageProps<"/admin/catalogo
       <h1>Categorías, talles y colores</h1>
       <Flash searchParams={searchParams} />
 
-      <section className={styles.card}>
+      <section className={styles.card} id="categorias">
         <h2>Categorías</h2>
         <p className={styles.muted}>
           La Bible define REMERAS, CAMISAS, BUZOS &amp; SWEATERS, CAMPERAS, PANTALONES y ACCESORIOS. NUEVO y VER TODO los arma la
@@ -59,7 +59,7 @@ export default async function CatalogoBasePage(props: PageProps<"/admin/catalogo
         </form>
       </section>
 
-      <section className={styles.card}>
+      <section className={styles.card} id="talles">
         <h2>Talles</h2>
         <p className={styles.muted}>El orden define cómo se muestran en la tienda (ej. S, M, L, XL).</p>
         {sizes.map((size) => (
@@ -94,7 +94,7 @@ export default async function CatalogoBasePage(props: PageProps<"/admin/catalogo
         </form>
       </section>
 
-      <section className={styles.card}>
+      <section className={styles.card} id="colores">
         <h2>Colores</h2>
         {colors.map((color) => (
           <form key={color.id} action={saveColorAction.bind(null, color.id)} className={styles.row}>
