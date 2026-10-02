@@ -29,7 +29,15 @@ export type PublicOutfit = {
   startsAt: string | null;
   endsAt: string | null;
   products: OutfitProduct[];
+  /**
+   * Historias donde aparece el outfit (recorrido central, Bible §39: outfit →
+   * campaña → G/K → aventura): entradas del Universo con página y capítulos
+   * de G & K publicados.
+   */
+  stories: OutfitStory[];
 };
+
+export type OutfitStory = { label: string; title: string; href: string };
 
 type OutfitRow = Pick<
   Tables<"outfits">,
@@ -90,6 +98,7 @@ export function assembleOutfits(
       startsAt: outfit.starts_at,
       endsAt: outfit.ends_at,
       products,
+      stories: [],
     });
   }
   return result;
@@ -134,6 +143,94 @@ export async function getCurrentOutfits(
   const productsById = new Map(products.map((product) => [product.id, product]));
 
   const outfits = assembleOutfits(current, links, productsById, (cover) => resolveCoverUrl(supabase, cover));
+  const stories = await getOutfitStories(
+    supabase,
+    outfits.map((outfit) => outfit.id),
+  );
+  for (const outfit of outfits) outfit.stories = stories.get(outfit.id) ?? [];
   const limit = options?.limit;
   return limit !== undefined && Number.isFinite(limit) && limit >= 0 ? outfits.slice(0, Math.floor(limit)) : outfits;
+}
+
+const STORY_KIND_LABELS: Record<string, string> = {
+  campaign: "Campaña",
+  production: "Producción",
+  season: "Temporada",
+  collaboration: "Colaboración",
+  audiovisual: "Audiovisual",
+};
+
+/** Historias publicadas (con página) que incluyen cada outfit. RLS + filtro explícito de publicado. */
+async function getOutfitStories(supabase: GxkSupabaseClient, outfitIds: string[]): Promise<Map<string, OutfitStory[]>> {
+  const result = new Map<string, OutfitStory[]>();
+  if (outfitIds.length === 0) return result;
+  const [entriesRes, chaptersRes] = await Promise.all([
+    supabase
+      .from("universe_entry_outfits")
+      .select("outfit_id, universe_entries!inner ( kind, title, slug, status, has_page, published_at )")
+      .in("outfit_id", outfitIds)
+      .eq("universe_entries.status", "published")
+      .eq("universe_entries.has_page", true)
+      .lte("universe_entries.published_at", new Date().toISOString())
+      .returns<{ outfit_id: string; universe_entries: { kind: string; title: string; slug: string } }[]>(),
+    supabase
+      .from("adventure_chapter_outfits")
+      .select("outfit_id, chapter_id")
+      .in("outfit_id", outfitIds),
+  ]);
+  if (entriesRes.error) throw entriesRes.error;
+  if (chaptersRes.error) throw chaptersRes.error;
+  const add = (outfitId: string, story: OutfitStory) => result.set(outfitId, [...(result.get(outfitId) ?? []), story]);
+  for (const row of entriesRes.data ?? []) {
+    const entry = row.universe_entries;
+    add(row.outfit_id, { label: STORY_KIND_LABELS[entry.kind] ?? entry.kind, title: entry.title, href: `/universo/${entry.slug}` });
+  }
+  const chapterLinks = chaptersRes.data ?? [];
+  if (chapterLinks.length > 0) {
+    const { data: chapters, error } = await supabase
+      .from("adventure_chapters")
+      .select("id, label, title, slug, adventure_seasons!inner ( slug, status )")
+      .in("id", [...new Set(chapterLinks.map((link) => link.chapter_id))])
+      .eq("status", "published")
+      .eq("adventure_seasons.status", "published")
+      .returns<{ id: string; label: string; title: string | null; slug: string; adventure_seasons: { slug: string } }[]>();
+    if (error) throw error;
+    const byId = new Map((chapters ?? []).map((chapter) => [chapter.id, chapter]));
+    for (const link of chapterLinks) {
+      const chapter = byId.get(link.chapter_id);
+      if (!chapter) continue;
+      add(link.outfit_id, {
+        label: "Las Aventuras de G & K",
+        title: `${chapter.label}${chapter.title ? ` ${chapter.title}` : ""}`,
+        href: `/universo/aventuras/${chapter.adventure_seasons.slug}/${chapter.slug}`,
+      });
+    }
+  }
+  return result;
+}
+
+/**
+ * Outfits vigentes que incluyen un producto ("descubrir outfit" desde el
+ * producto, Bible §39). Liviano: solo nombre y ancla en Home (no hay página
+ * de outfit; OUTFITS vive en /#outfits).
+ */
+export async function getOutfitsForProduct(
+  supabase: GxkSupabaseClient,
+  productId: string,
+  now: Date = new Date(),
+): Promise<{ name: string; href: string }[]> {
+  const { data: links, error } = await supabase.from("outfit_products").select("outfit_id").eq("product_id", productId);
+  if (error) throw error;
+  const ids = [...new Set((links ?? []).map((link) => link.outfit_id))];
+  if (ids.length === 0) return [];
+  const { data: outfits, error: outfitsError } = await supabase
+    .from("outfits")
+    .select("id, slug, name, starts_at, ends_at, sort_order")
+    .in("id", ids)
+    .eq("status", "published")
+    .order("sort_order");
+  if (outfitsError) throw outfitsError;
+  return (outfits ?? [])
+    .filter((outfit) => isOutfitCurrent(outfit, now))
+    .map((outfit) => ({ name: outfit.name, href: `/#outfit-${outfit.slug}` }));
 }

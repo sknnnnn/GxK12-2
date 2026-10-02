@@ -28,8 +28,9 @@ function OutfitPiece({
   const fixed = piece.variantId ? product.variants.find((v) => v.id === piece.variantId) : undefined;
   const status = resolvePiece(piece, null).status;
 
+  // Una pieza agotada sigue visible (desaturada); el outfit no desaparece.
   return (
-    <li className={styles.piece}>
+    <li className={status === "unavailable" ? `${styles.piece} ${styles.pieceSoldOut}` : styles.piece}>
       <Link href={`/producto/${product.slug}`} className={styles.pieceLink}>
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element -- mismo criterio que ProductCard: sin next/image todavía.
@@ -80,8 +81,10 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
 
   const result = useMemo(() => evaluateOutfit(outfit.products, selections), [outfit.products, selections]);
 
-  function handleAddAll() {
-    if (!result.complete) return;
+  // Completo o parcial (Bible §12): las piezas agotadas o sin elegir quedan
+  // como lugares vacíos y se agrega el resto.
+  function handleAdd() {
+    if (!result.complete && !result.partial) return;
     for (const line of result.lines) {
       addItem({ ...line, outfitId: outfit.id });
       track("add_to_cart", { productId: line.productId, outfitId: outfit.id, quantity: 1 });
@@ -91,11 +94,12 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
   }
 
   let hint: string | null = null;
-  if (result.unavailable > 0) hint = "Hay piezas sin stock: no se puede agregar el outfit completo.";
-  else if (result.needsSelection > 0) hint = "Elegí talle y color de cada pieza para agregar el outfit completo.";
+  if (result.unavailable > 0) hint = "Hay piezas sin stock: podés agregar las demás.";
+  else if (result.needsSelection > 0) hint = "Elegí talle y color de cada pieza para agregar el outfit completo, o agregá solo las que ya elegiste.";
+  const addLabel = result.complete ? "Agregar outfit completo" : result.partial ? `Agregar ${result.lines.length} de ${outfit.products.length} piezas` : "Agregar outfit completo";
 
   return (
-    <article className={styles.outfit} ref={articleRef}>
+    <article className={styles.outfit} ref={articleRef} id={`outfit-${outfit.slug}`}>
       {outfit.coverImageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- mismo criterio que ProductCard: sin next/image todavía.
         <img src={outfit.coverImageUrl} alt={outfit.name} className={styles.outfitCover} />
@@ -110,10 +114,23 @@ export function OutfitCard({ outfit }: { outfit: PublicOutfit }) {
             <OutfitPiece key={pieceKey(piece)} piece={piece} onSelect={handleSelect} />
           ))}
         </ul>
-        <button type="button" className={styles.addAll} disabled={!result.complete} onClick={handleAddAll}>
-          {justAdded ? "Outfit agregado ✓" : "Agregar outfit completo"}
+        <button type="button" className={styles.addAll} disabled={!result.complete && !result.partial} onClick={handleAdd}>
+          {justAdded ? "Agregado al carrito ✓" : addLabel}
         </button>
         {hint && <p className={styles.pieceStatus}>{hint}</p>}
+        {outfit.stories.length > 0 && (
+          <p className={styles.pieceStatus}>
+            Aparece en:{" "}
+            {outfit.stories.map((story, index) => (
+              <span key={story.href}>
+                {index > 0 && " · "}
+                <Link href={story.href}>
+                  {story.label} · {story.title}
+                </Link>
+              </span>
+            ))}
+          </p>
+        )}
       </div>
     </article>
   );

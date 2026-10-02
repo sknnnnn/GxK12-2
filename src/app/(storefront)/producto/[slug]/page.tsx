@@ -3,6 +3,8 @@ import { EARLY_ACCESS_LABEL, isEarlyAccess } from "@/lib/familia/membersOnly";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getProductBySlug, getProductMeasurements } from "@/services/catalog";
 import { getSiteSettings } from "@/services/site";
+import { getOutfitsForProduct } from "@/services/outfits";
+import Link from "next/link";
 import { DELIVERY_INFO, EXCHANGE_POLICY, SIZE_GUIDE } from "@/lib/storefront/content";
 import { buildWhatsAppHref, productInquiryMessage } from "@/lib/storefront/whatsapp";
 import { ProductPurchasePanel } from "@/components/storefront/ProductPurchasePanel";
@@ -22,7 +24,11 @@ export default async function ProductoPage({ params }: PageProps<"/producto/[slu
     notFound();
   }
 
-  const [measurements, site] = await Promise.all([getProductMeasurements(supabase, product.id), getSiteSettings(supabase)]);
+  const [measurements, site, outfits] = await Promise.all([
+    getProductMeasurements(supabase, product.id),
+    getSiteSettings(supabase),
+    getOutfitsForProduct(supabase, product.id),
+  ]);
 
   return (
     <main className={styles.main}>
@@ -130,6 +136,20 @@ export default async function ProductoPage({ params }: PageProps<"/producto/[slu
             ))}
           </ul>
         </section>
+
+        {/* Recorrido central (Bible §39): de la prenda al outfit. Secundario: va al final de la ficha. */}
+        {outfits.length > 0 && (
+          <section className={styles.block}>
+            <h2>Outfits con esta prenda</h2>
+            <ul>
+              {outfits.map((outfit) => (
+                <li key={outfit.href}>
+                  <Link href={outfit.href}>{outfit.name}</Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </main>
   );

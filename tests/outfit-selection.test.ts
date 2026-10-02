@@ -82,6 +82,20 @@ describe("evaluateOutfit", () => {
     assert.equal(result.lines.length, 1);
     assert.equal(evaluateOutfit([], {}).complete, false);
   });
+
+  it("con piezas agotadas o sin elegir se puede agregar parcialmente lo que está listo", () => {
+    const soldOut = piece("p3", [variant("v9", false)]);
+    const withSoldOut = evaluateOutfit([fixed, soldOut], {});
+    assert.equal(withSoldOut.partial, true);
+    assert.deepEqual(withSoldOut.lines.map((l) => l.variantId), ["v1"]);
+
+    const emptySlot = evaluateOutfit([fixed, free], {});
+    assert.equal(emptySlot.partial, true);
+    assert.equal(emptySlot.lines.length, 1);
+
+    assert.equal(evaluateOutfit([soldOut], {}).partial, false);
+    assert.equal(evaluateOutfit([fixed], {}).partial, false); // completo, no parcial
+  });
 });
 
 describe("navegación", () => {

@@ -35,6 +35,12 @@ export function resolvePiece(piece: OutfitProduct, selected: CatalogVariant | nu
 export type OutfitSelectionResult = {
   /** true solo si TODAS las piezas están listas. */
   complete: boolean;
+  /**
+   * true si el outfit no está completo pero hay al menos una pieza lista: se
+   * puede agregar parcialmente (las piezas agotadas o sin elegir quedan como
+   * lugares vacíos).
+   */
+  partial: boolean;
   needsSelection: number;
   unavailable: number;
   /** Una línea por variante distinta (si dos piezas resuelven a la misma, se agrega una sola vez). */
@@ -56,8 +62,10 @@ export function evaluateOutfit(
     else if (!lines.has(state.variant.id)) lines.set(state.variant.id, cartLineFromVariant(piece.product, state.variant));
   }
 
+  const complete = pieces.length > 0 && needsSelection === 0 && unavailable === 0;
   return {
-    complete: pieces.length > 0 && needsSelection === 0 && unavailable === 0,
+    complete,
+    partial: !complete && lines.size > 0,
     needsSelection,
     unavailable,
     lines: [...lines.values()],
